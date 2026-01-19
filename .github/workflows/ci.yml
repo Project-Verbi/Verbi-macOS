@@ -26,12 +26,10 @@ jobs:
           -scheme Verbi \
           -destination "platform=macOS" \
           -skipMacroValidation \
-          # --- Key Flags to Disable Signing ---
           CODE_SIGNING_ALLOWED=NO \
           CODE_SIGNING_REQUIRED=NO \
           CODE_SIGN_IDENTITY="" \
           PROVISIONING_PROFILE_SPECIFIER="" \
           DEVELOPMENT_TEAM="" \
           ENABLE_HARDENED_RUNTIME=NO \
-          # ------------------------------------
           test 
