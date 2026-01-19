@@ -34,4 +34,4 @@ jobs:
           DEVELOPMENT_TEAM="" \
           ENABLE_HARDENED_RUNTIME=NO \
           # ------------------------------------
-          clean test 
+          test 
