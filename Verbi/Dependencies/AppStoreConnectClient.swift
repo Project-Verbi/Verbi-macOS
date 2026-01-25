@@ -14,7 +14,8 @@ struct AppStoreConnectClient {
     var deleteAPIKey: () throws -> Void
     var hasAPIKey: () throws -> Bool
     var validateAPIKey: @Sendable @MainActor (_ key: AppStoreConnectKey) async throws -> Void
-    var fetchApps: () async throws -> [AppStoreApp]
+    var fetchApps: @Sendable () async throws -> [AppStoreApp]
+    var fetchChangelogs: @Sendable @MainActor (_ appID: String) async throws -> [AppChangelog]
 }
 
 extension AppStoreConnectClient: DependencyKey {
@@ -118,6 +119,25 @@ extension AppStoreConnectClient: DependencyKey {
                     iconURL: iconURL
                 )
             }
+        },
+        fetchChangelogs: { appID in
+            @Dependency(\.appStoreConnect) var appStoreConnect
+
+            guard let apiKey = try appStoreConnect.loadAPIKey() else {
+                throw AppStoreConnectError.noAPIKey
+            }
+
+            let configuration = try makeConfiguration(
+                issuerID: apiKey.issuerID,
+                keyID: apiKey.keyID,
+                privateKey: apiKey.privateKey
+            )
+
+            let provider = APIProvider(configuration: configuration)
+            guard let versionID = try await fetchLatestVersionID(for: appID, provider: provider) else {
+                return []
+            }
+            return try await fetchVersionLocalizations(for: versionID, provider: provider)
         }
     )
 }
@@ -234,6 +254,36 @@ private func currentIconURL(for app: App, from buildIcons: [String: BuildIcon]) 
         .replacingOccurrences(of: "{h}", with: "\(size)")
         .replacingOccurrences(of: "{f}", with: "png")
     return URL(string: urlString)
+}
+
+private func fetchLatestVersionID(for appID: String, provider: APIProvider) async throws -> String? {
+    let versions = try await fetchAppStoreVersions(for: appID, provider: provider)
+    guard !versions.isEmpty else { return nil }
+    let sorted = versions.sorted {
+        let lhsDate = $0.attributes?.createdDate ?? .distantPast
+        let rhsDate = $1.attributes?.createdDate ?? .distantPast
+        return lhsDate > rhsDate
+    }
+    return sorted.first?.id
+}
+
+private func fetchVersionLocalizations(for versionID: String, provider: APIProvider) async throws -> [AppChangelog] {
+    let request = APIEndpoint
+        .v1
+        .appStoreVersions
+        .id(versionID)
+        .appStoreVersionLocalizations
+        .get(parameters: .init(
+            fieldsAppStoreVersionLocalizations: [.locale, .whatsNew],
+            limit: 200
+        ))
+    let response = try await provider.request(request)
+    return response.data.compactMap { localization in
+        guard let attributes = localization.attributes,
+              let locale = attributes.locale
+        else { return nil }
+        return AppChangelog(id: locale, locale: locale, text: attributes.whatsNew ?? "")
+    }
 }
 
 struct AppsResponse: Codable {

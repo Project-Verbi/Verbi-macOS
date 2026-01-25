@@ -77,7 +77,9 @@ struct HomeView: View {
             if !releasedApps.isEmpty {
                 Section("Released Apps") {
                     ForEach(releasedApps) { app in
-                        AppRow(app: app)
+                        NavigationLink(value: app) {
+                            AppRow(app: app)
+                        }
                             .listRowSeparator(.visible)
                             .listRowBackground(Color.clear)
                     }
@@ -86,7 +88,9 @@ struct HomeView: View {
             if !unreleasedApps.isEmpty {
                 Section("Not Yet Released") {
                     ForEach(unreleasedApps) { app in
-                        AppRow(app: app)
+                        NavigationLink(value: app) {
+                            AppRow(app: app)
+                        }
                             .listRowSeparator(.visible)
                             .listRowBackground(Color.clear)
                     }

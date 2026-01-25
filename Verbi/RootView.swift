@@ -16,7 +16,12 @@ struct RootView: View {
             } else if showOnboarding {
                 OnboardingView()
             } else {
-                HomeView(onResetAPIKey: resetAPIKey)
+                NavigationStack {
+                    HomeView(onResetAPIKey: resetAPIKey)
+                        .navigationDestination(for: AppStoreApp.self) { app in
+                            AppDetailView(app: app)
+                        }
+                }
             }
         }
         .task {
