@@ -14,7 +14,7 @@ struct AppStoreConnectKey: Codable, Sendable {
     }
 }
 
-struct AppStoreApp: Identifiable, Codable {
+struct AppStoreApp: Identifiable, Codable, Hashable {
     let id: String
     let name: String
     let bundleId: String
@@ -24,4 +24,10 @@ struct AppStoreApp: Identifiable, Codable {
     let versionState: String?
     let hasReleased: Bool
     let iconURL: URL?
+}
+
+struct AppChangelog: Identifiable, Hashable {
+    let id: String
+    let locale: String
+    var text: String
 }

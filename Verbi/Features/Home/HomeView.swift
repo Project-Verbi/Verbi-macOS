@@ -7,11 +7,15 @@ struct HomeView: View {
 
     @Dependency(\.appStoreConnect)
     private var appStoreConnect
+
+    @Environment(\.openWindow)
+    private var openWindow
     
     @State private var apps: [AppStoreApp] = []
     @State private var isLoading = false
     @State private var errorMessage: String?
     @State private var showResetAction = false
+    @State private var selectedFilter: AppFilter? = .all
 
     private var releasedApps: [AppStoreApp] {
         apps.filter { $0.hasReleased }
@@ -26,9 +30,65 @@ struct HomeView: View {
     }
     
     var body: some View {
+        NavigationSplitView {
+            sidebar
+        } detail: {
+            detailContent
+        }
+        .task {
+            await loadApps()
+        }
+    }
+    
+    private var sidebar: some View {
+        List(selection: $selectedFilter) {
+            Section {
+                sidebarHeader
+            }
+
+            Section("Filters") {
+                ForEach(AppFilter.allCases) { filter in
+                    HStack(spacing: 10) {
+                        Text(filter.title)
+                        Spacer()
+                        Text("\(filter.count(in: apps))")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(
+                                Capsule()
+                                    .fill(Color(nsColor: .controlBackgroundColor))
+                            )
+                    }
+                    .tag(Optional(filter))
+                }
+            }
+        }
+        .listStyle(.sidebar)
+        .navigationTitle("Apps")
+    }
+
+    private var sidebarHeader: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Welcome back")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            Text("Verbi")
+                .font(.title3)
+                .fontWeight(.semibold)
+
+            SettingsLink {
+                Label("Settings", systemImage: "gearshape")
+                    .font(.subheadline)
+            }
+        }
+        .padding(.vertical, 8)
+    }
+
+    private var detailContent: some View {
         VStack(spacing: 32) {
-            header
-            
             if isLoading {
                 ProgressView("Loading apps...")
                     .frame(maxWidth: .infinity)
@@ -52,41 +112,33 @@ struct HomeView: View {
                 endPoint: .bottomTrailing
             )
         )
-        .task {
-            await loadApps()
-        }
-    }
-    
-    private var header: some View {
-        HStack(alignment: .firstTextBaseline) {
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Apps")
-                    .font(.system(size: 28, weight: .semibold))
-                    .foregroundStyle(.primary)
-                Text(apps.isEmpty ? "Connect your App Store Connect apps." : "\(apps.count) total")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
-            Spacer()
-        }
-        .frame(maxWidth: 800)
     }
     
     private var appsList: some View {
         List {
-            if !releasedApps.isEmpty {
+            if !displayedReleasedApps.isEmpty {
                 Section("Released Apps") {
-                    ForEach(releasedApps) { app in
-                        AppRow(app: app)
+                    ForEach(displayedReleasedApps) { app in
+                        Button {
+                            openWindow(value: app)
+                        } label: {
+                            AppRow(app: app)
+                        }
+                        .buttonStyle(.plain)
                             .listRowSeparator(.visible)
                             .listRowBackground(Color.clear)
                     }
                 }
             }
-            if !unreleasedApps.isEmpty {
+            if !displayedUnreleasedApps.isEmpty {
                 Section("Not Yet Released") {
-                    ForEach(unreleasedApps) { app in
-                        AppRow(app: app)
+                    ForEach(displayedUnreleasedApps) { app in
+                        Button {
+                            openWindow(value: app)
+                        } label: {
+                            AppRow(app: app)
+                        }
+                        .buttonStyle(.plain)
                             .listRowSeparator(.visible)
                             .listRowBackground(Color.clear)
                     }
@@ -207,6 +259,58 @@ struct HomeView: View {
             return "Request failed (\(statusCode)): \(responseError.title).\(detail)"
         }
         return "Request failed (\(statusCode))."
+    }
+
+    private var currentFilter: AppFilter {
+        selectedFilter ?? .all
+    }
+
+    private var displayedReleasedApps: [AppStoreApp] {
+        switch currentFilter {
+        case .all, .released:
+            return releasedApps
+        case .unreleased:
+            return []
+        }
+    }
+
+    private var displayedUnreleasedApps: [AppStoreApp] {
+        switch currentFilter {
+        case .all, .unreleased:
+            return unreleasedApps
+        case .released:
+            return []
+        }
+    }
+
+    private enum AppFilter: String, CaseIterable, Identifiable {
+        case all
+        case released
+        case unreleased
+
+        var id: String { rawValue }
+
+        var title: String {
+            switch self {
+            case .all:
+                return "All Apps"
+            case .released:
+                return "Released"
+            case .unreleased:
+                return "Not Yet Released"
+            }
+        }
+
+        func count(in apps: [AppStoreApp]) -> Int {
+            switch self {
+            case .all:
+                return apps.count
+            case .released:
+                return apps.filter { $0.hasReleased }.count
+            case .unreleased:
+                return apps.filter { !$0.hasReleased }.count
+            }
+        }
     }
 
 }
