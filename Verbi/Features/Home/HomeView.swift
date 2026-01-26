@@ -345,6 +345,7 @@ struct AppRow: View {
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(.tertiary)
         }
+        .contentShape(Rectangle())
         .padding(.vertical, 6)
     }
 }
