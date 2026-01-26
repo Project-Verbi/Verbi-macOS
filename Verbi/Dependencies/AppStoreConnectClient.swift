@@ -229,8 +229,8 @@ private func currentVersionInfo(from versions: [AppStoreVersion], hasReleased: B
         return AppStoreVersionInfo(version: nil, state: nil, hasReleased: hasReleased)
     }
     return AppStoreVersionInfo(
-        version: chosen?.attributes?.versionString,
-        state: chosen?.attributes?.appStoreState?.rawValue,
+        version: chosen.attributes?.versionString,
+        state: chosen.attributes?.appStoreState?.rawValue,
         hasReleased: hasReleased
     )
 }

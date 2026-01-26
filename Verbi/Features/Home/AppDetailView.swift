@@ -254,8 +254,18 @@ struct AppDetailView: View {
 
         do {
             let changelogs = try await appStoreConnect.fetchChangelogs(app.id)
-            changelogByLocale = Dictionary(uniqueKeysWithValues: changelogs.map { ($0.locale, $0.text) })
-            locales = changelogs.map(\.locale).sorted { displayName(for: $0) < displayName(for: $1) }
+            changelogByLocale = Dictionary(
+                changelogs.map { ($0.locale, $0.text) },
+                uniquingKeysWith: { first, _ in first }
+            )
+            locales = changelogs
+                .map(\.locale)
+                .reduce(into: [String]()) { result, locale in
+                    if !result.contains(locale) {
+                        result.append(locale)
+                    }
+                }
+                .sorted { displayName(for: $0) < displayName(for: $1) }
             if selectedLocale == nil {
                 selectedLocale = locales.first
             }
