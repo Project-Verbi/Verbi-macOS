@@ -225,15 +225,9 @@ private func fetchHasReleasedVersion(for appID: String, provider: APIProvider) a
 }
 
 private func currentVersionInfo(from versions: [AppStoreVersion], hasReleased: Bool) -> AppStoreVersionInfo {
-    guard !versions.isEmpty else {
+    guard let chosen = latestVersion(from: versions) else {
         return AppStoreVersionInfo(version: nil, state: nil, hasReleased: hasReleased)
     }
-    let sorted = versions.sorted {
-        let lhsDate = $0.attributes?.createdDate ?? .distantPast
-        let rhsDate = $1.attributes?.createdDate ?? .distantPast
-        return lhsDate > rhsDate
-    }
-    let chosen = sorted.first
     return AppStoreVersionInfo(
         version: chosen?.attributes?.versionString,
         state: chosen?.attributes?.appStoreState?.rawValue,
@@ -258,13 +252,15 @@ private func currentIconURL(for app: App, from buildIcons: [String: BuildIcon]) 
 
 private func fetchLatestVersionID(for appID: String, provider: APIProvider) async throws -> String? {
     let versions = try await fetchAppStoreVersions(for: appID, provider: provider)
-    guard !versions.isEmpty else { return nil }
-    let sorted = versions.sorted {
-        let lhsDate = $0.attributes?.createdDate ?? .distantPast
-        let rhsDate = $1.attributes?.createdDate ?? .distantPast
-        return lhsDate > rhsDate
+    return latestVersion(from: versions)?.id
+}
+
+private func latestVersion(from versions: [AppStoreVersion]) -> AppStoreVersion? {
+    versions.max { lhs, rhs in
+        let lhsDate = lhs.attributes?.createdDate ?? .distantPast
+        let rhsDate = rhs.attributes?.createdDate ?? .distantPast
+        return lhsDate < rhsDate
     }
-    return sorted.first?.id
 }
 
 private func fetchVersionLocalizations(for versionID: String, provider: APIProvider) async throws -> [AppChangelog] {
