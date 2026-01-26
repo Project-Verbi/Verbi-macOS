@@ -21,6 +21,7 @@ jobs:
           
       - name: Build & Test
         run: |
+          set -o pipefail && \
           xcodebuild \
           -project Verbi.xcodeproj \
           -scheme Verbi \
@@ -32,4 +33,5 @@ jobs:
           PROVISIONING_PROFILE_SPECIFIER="" \
           DEVELOPMENT_TEAM="" \
           ENABLE_HARDENED_RUNTIME=NO \
-          test 
+          test \
+          | xcbeautify --renderer github-actions
