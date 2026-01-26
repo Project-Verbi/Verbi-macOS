@@ -33,6 +33,7 @@ struct AppDetailView: View {
             }
         }
         .listStyle(.sidebar)
+        .frame(minWidth: 260, idealWidth: 300, maxWidth: 340)
     }
 
     private var detailContent: some View {
