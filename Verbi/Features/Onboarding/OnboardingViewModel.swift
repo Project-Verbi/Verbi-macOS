@@ -14,8 +14,12 @@ final class OnboardingViewModel {
     
     
     @ObservationIgnored
-    @Dependency(\.appStoreConnect)
-    private var appStoreConnect
+    @Dependency(\.appStoreConnectKey)
+    private var keyClient
+    
+    @ObservationIgnored
+    @Dependency(\.appStoreConnectAPI)
+    private var apiClient
     
     @MainActor
     func saveAPIKey() async {
@@ -36,8 +40,8 @@ final class OnboardingViewModel {
         )
         
         do {
-            try await appStoreConnect.validateAPIKey(apiKey)
-            try appStoreConnect.saveAPIKey(apiKey)
+            try await apiClient.validateAPIKey(apiKey)
+            try keyClient.saveAPIKey(apiKey)
             showSuccess = true
             clearForm()
         } catch let error as JWT.Error {

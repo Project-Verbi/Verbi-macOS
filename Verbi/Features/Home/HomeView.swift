@@ -5,8 +5,8 @@ import AppStoreConnect_Swift_SDK
 struct HomeView: View {
     let onResetAPIKey: () -> Void
 
-    @Dependency(\.appStoreConnect)
-    private var appStoreConnect
+    @Dependency(\.appStoreConnectAPI)
+    private var apiClient
 
     @Environment(\.openWindow)
     private var openWindow
@@ -215,7 +215,7 @@ struct HomeView: View {
         errorMessage = nil
         
         do {
-            apps = try await appStoreConnect.fetchApps()
+            apps = try await apiClient.fetchApps()
             showResetAction = false
         } catch let error as JWT.Error {
             switch error {

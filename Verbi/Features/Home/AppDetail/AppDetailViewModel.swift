@@ -9,8 +9,8 @@ final class AppDetailViewModel {
     let app: AppStoreApp
 
     @ObservationIgnored
-    @Dependency(\.appStoreConnect)
-    private var appStoreConnect
+    @Dependency(\.appStoreConnectAPI)
+    private var apiClient
     
     @ObservationIgnored
     @Dependency(\.locale)
@@ -107,7 +107,7 @@ final class AppDetailViewModel {
         actionMessage = nil
 
         do {
-            let fetched = try await appStoreConnect.fetchAppVersions(app.id)
+            let fetched = try await apiClient.fetchAppVersions(app.id)
             versions = fetched
             if let selected = selectedVersionID, fetched.contains(where: { $0.id == selected }) {
                 selectedVersionID = selected
@@ -147,7 +147,7 @@ final class AppDetailViewModel {
         actionMessage = nil
 
         do {
-            let changelogs = try await appStoreConnect.fetchChangelogs(versionID)
+            let changelogs = try await apiClient.fetchChangelogs(versionID)
             changelogByLocale = Dictionary(
                 changelogs.map { ($0.locale, $0.text) },
                 uniquingKeysWith: { first, _ in first }
@@ -189,7 +189,7 @@ final class AppDetailViewModel {
         actionMessage = nil
 
         do {
-            try await appStoreConnect.updateChangelog(localizationID, text)
+            try await apiClient.updateChangelog(localizationID, text)
             dirtyLocales.remove(locale)
             if dirtyLocales.isEmpty, let versionID = selectedVersionID {
                 draftsByVersion[versionID] = nil
@@ -212,7 +212,7 @@ final class AppDetailViewModel {
         actionMessage = nil
 
         do {
-            let newVersion = try await appStoreConnect.createAppVersion(app.id, trimmed, platformRaw)
+            let newVersion = try await apiClient.createAppVersion(app.id, trimmed, platformRaw)
             newVersionString = ""
             showNewVersionSheet = false
             await loadVersions()
