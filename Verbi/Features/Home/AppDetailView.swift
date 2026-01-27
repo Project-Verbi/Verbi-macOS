@@ -31,7 +31,7 @@ struct AppDetailView: View {
     private var sidebar: some View {
         List(selection: versionSelectionBinding) {
             Section {
-                sidebarHeader
+                AppDetailSidebarHeaderView(app: app)
             }
 
             HStack {
@@ -80,7 +80,20 @@ struct AppDetailView: View {
         .listStyle(.sidebar)
         .frame(minWidth: 260, idealWidth: 300, maxWidth: 340)
         .sheet(isPresented: $viewModel.showNewVersionSheet) {
-            newVersionSheet
+            AppDetailNewVersionSheet(
+                versionString: $viewModel.newVersionString,
+                isSaving: viewModel.isSaving,
+                canCreate: !viewModel.newVersionString.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && viewModel.platformRawForNewVersion != nil,
+                onCancel: {
+                    viewModel.newVersionString = ""
+                    viewModel.showNewVersionSheet = false
+                },
+                onCreate: {
+                    Task {
+                        await viewModel.createNewVersion()
+                    }
+                }
+            )
         }
     }
 
@@ -101,7 +114,41 @@ struct AppDetailView: View {
             } else {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 20) {
-                        changelogSection
+                        AppDetailChangelogSectionView(
+                            selectedVersion: viewModel.selectedVersion,
+                            canEditChangelog: viewModel.canEditChangelog,
+                            canSaveChangelog: viewModel.canSaveChangelog,
+                            isSaving: viewModel.isSaving,
+                            errorMessage: viewModel.errorMessage,
+                            changelogText: viewModel.selectedChangelogText,
+                            changelogFooterText: viewModel.changelogFooterText,
+                            locales: viewModel.locales,
+                            selectedLocale: viewModel.selectedLocale,
+                            onChangelogChanged: { newValue in
+                                viewModel.updateSelectedChangelogText(newValue)
+                            },
+                            onSaveTapped: {
+                                Task {
+                                    await viewModel.saveCurrentChangelog()
+                                }
+                            },
+                            onLanguagePickerTapped: {
+                                viewModel.showLanguagePicker = true
+                            }
+                        )
+                        .popover(isPresented: $viewModel.showLanguagePicker, arrowEdge: .bottom) {
+                            AppDetailLanguagePickerPopover(
+                                locales: viewModel.locales,
+                                selectedLocale: viewModel.selectedLocale,
+                                displayName: { locale in
+                                    viewModel.displayName(for: locale)
+                                },
+                                onLocaleSelected: { locale in
+                                    viewModel.selectedLocale = locale
+                                    viewModel.showLanguagePicker = false
+                                }
+                            )
+                        }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(28)
@@ -111,192 +158,6 @@ struct AppDetailView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    private var sidebarHeader: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .top, spacing: 12) {
-                AsyncImage(url: app.iconURL) { phase in
-                    switch phase {
-                    case .success(let image):
-                        image.resizable().scaledToFill()
-                    case .failure, .empty:
-                        Image(systemName: "sparkles")
-                            .font(.system(size: 18, weight: .semibold))
-                            .foregroundStyle(.white.opacity(0.9))
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            .background(
-                                LinearGradient(
-                                    colors: [
-                                        Color(nsColor: .systemBlue),
-                                        Color(nsColor: .systemTeal)
-                                    ],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
-                            )
-                    @unknown default:
-                        Color(nsColor: .controlBackgroundColor)
-                    }
-                }
-                .frame(width: 52, height: 52)
-                .background(Color(nsColor: .controlBackgroundColor))
-                .clipShape(RoundedRectangle(cornerRadius: 12))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(Color(nsColor: .separatorColor), lineWidth: 1)
-                )
-
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(app.name)
-                        .font(.headline)
-                        .fontWeight(.semibold)
-                        .lineLimit(2)
-
-                    Text(app.bundleId)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(2)
-                }
-            }
-        }
-        .padding(.vertical, 8)
-    }
-
-    private var changelogSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text("Changelog")
-                    .font(.title3)
-                    .fontWeight(.semibold)
-                if let selectedVersion = viewModel.selectedVersion {
-                    Text("Version \(selectedVersion.version)")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
-                if viewModel.canEditChangelog {
-                    Button {
-                        Task {
-                            await viewModel.saveCurrentChangelog()
-                        }
-                    } label: {
-                        if viewModel.isSaving {
-                            ProgressView()
-                                .controlSize(.small)
-                        } else {
-                            Text("Save")
-                        }
-                    }
-                    .buttonStyle(.bordered)
-                    .disabled(!viewModel.canSaveChangelog)
-                }
-                if !viewModel.locales.isEmpty {
-                    languagePickerButton
-                }
-            }
-
-            if let errorMessage = viewModel.errorMessage {
-                Text(errorMessage)
-                    .font(.subheadline)
-                    .foregroundStyle(.orange)
-            } else if viewModel.selectedVersion == nil {
-                Text("Select a version to view changelogs.")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            } else if viewModel.locales.isEmpty {
-                Text("No localized changelogs available.")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            } else {
-                TextField("What's new", text: selectedChangelogBinding, axis: .vertical)
-                    .font(.body)
-                    .lineLimit(5...10)
-                    .textFieldStyle(.plain)
-                    .disabled(!viewModel.canEditChangelog)
-            }
-
-            if !viewModel.canEditChangelog, viewModel.selectedVersion != nil {
-                Text(viewModel.changelogFooterText)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .frame(maxWidth: 700, alignment: .leading)
-    }
-
-    private var languagePickerButton: some View {
-        Button {
-            viewModel.showLanguagePicker = true
-        } label: {
-            HStack(spacing: 6) {
-                Text(viewModel.selectedLocale?.uppercased() ?? "—")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Image(systemName: "chevron.down")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background(
-                Capsule()
-                    .fill(Color(nsColor: .controlBackgroundColor))
-            )
-            .overlay(
-                Capsule()
-                    .stroke(Color(nsColor: .separatorColor), lineWidth: 1)
-            )
-        }
-        .buttonStyle(.plain)
-        .popover(isPresented: $viewModel.showLanguagePicker, arrowEdge: .bottom) {
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Language")
-                    .font(.headline)
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 8) {
-                        ForEach(viewModel.locales, id: \.self) { locale in
-                            Button {
-                                viewModel.selectedLocale = locale
-                                viewModel.showLanguagePicker = false
-                            } label: {
-                                HStack(alignment: .firstTextBaseline) {
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(viewModel.displayName(for: locale))
-                                            .font(.subheadline)
-                                            .foregroundStyle(.primary)
-                                        Text(locale.uppercased())
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
-                                    }
-
-                                    if locale == viewModel.selectedLocale {
-                                        Image(systemName: "checkmark")
-                                            .font(.caption)
-                                    }
-
-                                }
-                                .padding(.vertical, 6)
-                                .padding(.horizontal, 6)
-                                .contentShape(Rectangle())
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                }
-                .frame(minWidth: 220, maxWidth: 260, maxHeight: 280)
-            }
-            .padding(16)
-        }
-    }
-
-    private var selectedChangelogBinding: Binding<String> {
-        Binding(
-            get: { viewModel.selectedChangelogText },
-            set: { newValue in
-                viewModel.updateSelectedChangelogText(newValue)
-            }
-        )
-    }
-
     private var versionSelectionBinding: Binding<String?> {
         Binding(
             get: { viewModel.selectedVersionID },
@@ -304,38 +165,6 @@ struct AppDetailView: View {
                 viewModel.setSelectedVersionID(newValue)
             }
         )
-    }
-
-    private var newVersionSheet: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Create New Version")
-                .font(.headline)
-            TextField("Version number", text: $viewModel.newVersionString)
-                .textFieldStyle(.roundedBorder)
-            HStack {
-                Spacer()
-                Button("Cancel") {
-                    viewModel.newVersionString = ""
-                    viewModel.showNewVersionSheet = false
-                }
-                Button {
-                    Task {
-                        await viewModel.createNewVersion()
-                    }
-                } label: {
-                    if viewModel.isSaving {
-                        ProgressView()
-                            .controlSize(.small)
-                    } else {
-                        Text("Create")
-                    }
-                }
-                .disabled(viewModel.isSaving || viewModel.newVersionString.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || viewModel.platformRawForNewVersion == nil)
-                .buttonStyle(.borderedProminent)
-            }
-        }
-        .padding(20)
-        .frame(width: 320)
     }
 }
 
