@@ -26,6 +26,20 @@ struct AppStoreApp: Identifiable, Codable, Hashable {
     let iconURL: URL?
 }
 
+struct AppStoreVersionSummary: Identifiable, Hashable {
+    enum Kind: String {
+        case current = "Current"
+        case upcoming = "Upcoming"
+    }
+
+    let id: String
+    let version: String
+    let state: String?
+    let platform: String?
+    let kind: Kind
+    let isEditable: Bool
+}
+
 struct AppChangelog: Identifiable, Hashable {
     let id: String
     let locale: String
