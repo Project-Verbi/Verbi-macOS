@@ -24,6 +24,20 @@ struct AppStoreApp: Identifiable, Codable, Hashable {
     let versionState: String?
     let hasReleased: Bool
     let iconURL: URL?
+
+    static var stub: AppStoreApp {
+        AppStoreApp(
+            id: "stub-app-id",
+            name: "Stub App",
+            bundleId: "com.example.stub",
+            platform: "IOS",
+            sku: "stub-sku",
+            version: "1.0.0",
+            versionState: "PREPARE_FOR_SUBMISSION",
+            hasReleased: false,
+            iconURL: nil
+        )
+    }
 }
 
 struct AppStoreVersionSummary: Identifiable, Hashable {
