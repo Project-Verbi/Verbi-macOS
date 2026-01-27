@@ -1,27 +1,17 @@
 import SwiftUI
 import Dependencies
+import Observation
+
 
 struct AppDetailView: View {
     let app: AppStoreApp
 
-    @Dependency(\.appStoreConnect)
-    private var appStoreConnect
+    @State private var viewModel: AppDetailViewModel
 
-    @State private var versions: [AppStoreVersionSummary] = []
-    @State private var selectedVersionID: String?
-    @State private var changelogByLocale: [String: String] = [:]
-    @State private var changelogIDByLocale: [String: String] = [:]
-    @State private var dirtyLocales: Set<String> = []
-    @State private var locales: [String] = []
-    @State private var selectedLocale: String?
-    @State private var showLanguagePicker = false
-    @State private var isLoadingVersions = false
-    @State private var isLoadingChangelogs = false
-    @State private var isSaving = false
-    @State private var errorMessage: String?
-    @State private var showNewVersionSheet = false
-    @State private var newVersionString = ""
-    @State private var actionMessage: String?
+    init(app: AppStoreApp) {
+        self.app = app
+        _viewModel = State(wrappedValue: AppDetailViewModel(app: app))
+    }
 
     var body: some View {
         NavigationSplitView {
@@ -31,42 +21,42 @@ struct AppDetailView: View {
         }
         .navigationTitle(app.name)
         .task {
-            await loadVersions()
+            await viewModel.loadVersions()
         }
-        .task(id: selectedVersionID) {
-            await loadChangelogs()
+        .task(id: viewModel.selectedVersionID) {
+            await viewModel.loadChangelogs()
         }
     }
 
     private var sidebar: some View {
-        List(selection: $selectedVersionID) {
+        List(selection: versionSelectionBinding) {
             Section {
                 sidebarHeader
             }
-            
+
             HStack {
                 Text("Versions")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                 Spacer()
                 Button {
-                    showNewVersionSheet = true
+                    viewModel.showNewVersionSheet = true
                 } label: {
                     Image(systemName: "plus")
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
-                .disabled(platformRawForNewVersion == nil)
-                .help(platformRawForNewVersion == nil ? "Version creation unavailable" : "Create new version")
+                .disabled(viewModel.platformRawForNewVersion == nil)
+                .help(viewModel.platformRawForNewVersion == nil ? "Version creation unavailable" : "Create new version")
             }
             .padding(.vertical, 6)
 
-            if versions.isEmpty {
+            if viewModel.versions.isEmpty {
                 Text("No versions available yet.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             } else {
-                ForEach(versions) { version in
+                ForEach(viewModel.versions) { version in
                     HStack(alignment: .top, spacing: 8) {
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Version \(version.version)")
@@ -89,7 +79,7 @@ struct AppDetailView: View {
         }
         .listStyle(.sidebar)
         .frame(minWidth: 260, idealWidth: 300, maxWidth: 340)
-        .sheet(isPresented: $showNewVersionSheet) {
+        .sheet(isPresented: $viewModel.showNewVersionSheet) {
             newVersionSheet
         }
     }
@@ -105,7 +95,7 @@ struct AppDetailView: View {
                 endPoint: .bottomTrailing
             )
 
-            if isLoadingVersions || isLoadingChangelogs {
+            if viewModel.isLoadingVersions || viewModel.isLoadingChangelogs {
                 ProgressView("Loading...")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
@@ -177,19 +167,19 @@ struct AppDetailView: View {
                 Text("Changelog")
                     .font(.title3)
                     .fontWeight(.semibold)
-                if let selectedVersion {
+                if let selectedVersion = viewModel.selectedVersion {
                     Text("Version \(selectedVersion.version)")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
-                if canEditChangelog {
+                if viewModel.canEditChangelog {
                     Button {
                         Task {
-                            await saveCurrentChangelog()
+                            await viewModel.saveCurrentChangelog()
                         }
                     } label: {
-                        if isSaving {
+                        if viewModel.isSaving {
                             ProgressView()
                                 .controlSize(.small)
                         } else {
@@ -197,26 +187,22 @@ struct AppDetailView: View {
                         }
                     }
                     .buttonStyle(.bordered)
-                    .disabled(!canSaveChangelog)
+                    .disabled(!viewModel.canSaveChangelog)
                 }
-                if !locales.isEmpty {
+                if !viewModel.locales.isEmpty {
                     languagePickerButton
                 }
             }
 
-            if let errorMessage = errorMessage {
+            if let errorMessage = viewModel.errorMessage {
                 Text(errorMessage)
                     .font(.subheadline)
                     .foregroundStyle(.orange)
-            } else if let actionMessage = actionMessage {
-                Text(actionMessage)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            } else if selectedVersion == nil {
+            } else if viewModel.selectedVersion == nil {
                 Text("Select a version to view changelogs.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
-            } else if locales.isEmpty {
+            } else if viewModel.locales.isEmpty {
                 Text("No localized changelogs available.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
@@ -225,11 +211,11 @@ struct AppDetailView: View {
                     .font(.body)
                     .lineLimit(5...10)
                     .textFieldStyle(.plain)
-                    .disabled(!canEditChangelog)
+                    .disabled(!viewModel.canEditChangelog)
             }
-            
-            if !canEditChangelog, selectedVersion != nil {
-                Text(changelogFooterText)
+
+            if !viewModel.canEditChangelog, viewModel.selectedVersion != nil {
+                Text(viewModel.changelogFooterText)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -239,10 +225,10 @@ struct AppDetailView: View {
 
     private var languagePickerButton: some View {
         Button {
-            showLanguagePicker = true
+            viewModel.showLanguagePicker = true
         } label: {
             HStack(spacing: 6) {
-                Text(selectedLocale?.uppercased() ?? "—")
+                Text(viewModel.selectedLocale?.uppercased() ?? "—")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Image(systemName: "chevron.down")
@@ -261,32 +247,32 @@ struct AppDetailView: View {
             )
         }
         .buttonStyle(.plain)
-        .popover(isPresented: $showLanguagePicker, arrowEdge: .bottom) {
+        .popover(isPresented: $viewModel.showLanguagePicker, arrowEdge: .bottom) {
             VStack(alignment: .leading, spacing: 12) {
                 Text("Language")
                     .font(.headline)
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 8) {
-                        ForEach(locales, id: \.self) { locale in
+                        ForEach(viewModel.locales, id: \.self) { locale in
                             Button {
-                                selectedLocale = locale
-                                showLanguagePicker = false
+                                viewModel.selectedLocale = locale
+                                viewModel.showLanguagePicker = false
                             } label: {
                                 HStack(alignment: .firstTextBaseline) {
                                     VStack(alignment: .leading, spacing: 2) {
-                                        Text(displayName(for: locale))
+                                        Text(viewModel.displayName(for: locale))
                                             .font(.subheadline)
                                             .foregroundStyle(.primary)
                                         Text(locale.uppercased())
                                             .font(.caption)
                                             .foregroundStyle(.secondary)
                                     }
-                                    
-                                    if locale == selectedLocale {
+
+                                    if locale == viewModel.selectedLocale {
                                         Image(systemName: "checkmark")
                                             .font(.caption)
                                     }
-                                    
+
                                 }
                                 .padding(.vertical, 6)
                                 .padding(.horizontal, 6)
@@ -304,20 +290,170 @@ struct AppDetailView: View {
 
     private var selectedChangelogBinding: Binding<String> {
         Binding(
-            get: {
-                guard let key = selectedLocale, !key.isEmpty else { return "" }
-                return changelogByLocale[key] ?? ""
-            },
+            get: { viewModel.selectedChangelogText },
             set: { newValue in
-                guard let key = selectedLocale, !key.isEmpty else { return }
-                changelogByLocale[key] = newValue
-                dirtyLocales.insert(key)
-                actionMessage = nil
+                viewModel.updateSelectedChangelogText(newValue)
             }
         )
     }
 
-    private func loadChangelogs() async {
+    private var versionSelectionBinding: Binding<String?> {
+        Binding(
+            get: { viewModel.selectedVersionID },
+            set: { newValue in
+                viewModel.setSelectedVersionID(newValue)
+            }
+        )
+    }
+
+    private var newVersionSheet: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Create New Version")
+                .font(.headline)
+            TextField("Version number", text: $viewModel.newVersionString)
+                .textFieldStyle(.roundedBorder)
+            HStack {
+                Spacer()
+                Button("Cancel") {
+                    viewModel.newVersionString = ""
+                    viewModel.showNewVersionSheet = false
+                }
+                Button {
+                    Task {
+                        await viewModel.createNewVersion()
+                    }
+                } label: {
+                    if viewModel.isSaving {
+                        ProgressView()
+                            .controlSize(.small)
+                    } else {
+                        Text("Create")
+                    }
+                }
+                .disabled(viewModel.isSaving || viewModel.newVersionString.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || viewModel.platformRawForNewVersion == nil)
+                .buttonStyle(.borderedProminent)
+            }
+        }
+        .padding(20)
+        .frame(width: 320)
+    }
+}
+
+@MainActor
+@Observable
+final class AppDetailViewModel {
+    let app: AppStoreApp
+
+    @ObservationIgnored
+    @Dependency(\.appStoreConnect)
+    private var appStoreConnect
+
+    var versions: [AppStoreVersionSummary] = []
+    var selectedVersionID: String?
+    var changelogByLocale: [String: String] = [:]
+    var changelogIDByLocale: [String: String] = [:]
+    var dirtyLocales: Set<String> = []
+    var locales: [String] = []
+    var selectedLocale: String?
+    var showLanguagePicker = false
+    var isLoadingVersions = false
+    var isLoadingChangelogs = false
+    var isSaving = false
+    var errorMessage: String?
+    var showNewVersionSheet = false
+    var newVersionString = ""
+    var actionMessage: String?
+
+    private var draftsByVersion: [String: VersionDraft] = [:]
+
+    init(app: AppStoreApp) {
+        self.app = app
+    }
+
+    var selectedVersion: AppStoreVersionSummary? {
+        versions.first { $0.id == selectedVersionID }
+    }
+
+    var canEditChangelog: Bool {
+        selectedVersion?.isEditable ?? false
+    }
+
+    var changelogFooterText: String {
+        guard let state = selectedVersion?.state?.uppercased() else {
+            return "Changelog editing is unavailable for released versions."
+        }
+        if state == "PENDING_DEVELOPER_RELEASE" {
+            return "Changelog editing is unavailable while the app is pending developer release."
+        }
+        return "Changelog editing is unavailable for released versions."
+    }
+
+    var canCreateVersion: Bool {
+        let normalizedState = selectedVersion?.state?.uppercased()
+        return normalizedState != "PENDING_DEVELOPER_RELEASE"
+    }
+
+    var canSaveChangelog: Bool {
+        guard let locale = selectedLocale,
+              dirtyLocales.contains(locale),
+              let localizationID = changelogIDByLocale[locale],
+              !localizationID.isEmpty,
+              canEditChangelog
+        else { return false }
+        return !isSaving
+    }
+
+    var platformRawForNewVersion: String? {
+        guard canCreateVersion else { return nil }
+        return selectedVersion?.platform ?? versions.first?.platform
+    }
+
+    var selectedChangelogText: String {
+        guard let key = selectedLocale, !key.isEmpty else { return "" }
+        return changelogByLocale[key] ?? ""
+    }
+
+    func setSelectedVersionID(_ newValue: String?) {
+        if let currentID = selectedVersionID, currentID != newValue, !dirtyLocales.isEmpty {
+            draftsByVersion[currentID] = VersionDraft(
+                changelogByLocale: changelogByLocale,
+                changelogIDByLocale: changelogIDByLocale,
+                locales: locales,
+                selectedLocale: selectedLocale,
+                dirtyLocales: dirtyLocales
+            )
+        }
+        selectedVersionID = newValue
+    }
+
+    func updateSelectedChangelogText(_ newValue: String) {
+        guard let key = selectedLocale, !key.isEmpty else { return }
+        changelogByLocale[key] = newValue
+        dirtyLocales.insert(key)
+        actionMessage = nil
+    }
+
+    func loadVersions() async {
+        isLoadingVersions = true
+        errorMessage = nil
+        actionMessage = nil
+
+        do {
+            let fetched = try await appStoreConnect.fetchAppVersions(app.id)
+            versions = fetched
+            if let selected = selectedVersionID, fetched.contains(where: { $0.id == selected }) {
+                selectedVersionID = selected
+            } else {
+                selectedVersionID = fetched.first?.id
+            }
+        } catch {
+            errorMessage = "Failed to load versions: \(error.localizedDescription)"
+        }
+
+        isLoadingVersions = false
+    }
+
+    func loadChangelogs() async {
         guard let versionID = selectedVersionID else {
             changelogByLocale = [:]
             changelogIDByLocale = [:]
@@ -326,14 +462,21 @@ struct AppDetailView: View {
             return
         }
 
+        if let draft = draftsByVersion[versionID] {
+            changelogByLocale = draft.changelogByLocale
+            changelogIDByLocale = draft.changelogIDByLocale
+            locales = draft.locales
+            selectedLocale = draft.selectedLocale ?? locales.first
+            dirtyLocales = draft.dirtyLocales
+            errorMessage = nil
+            actionMessage = "Loaded unsaved draft."
+            isLoadingChangelogs = false
+            return
+        }
+
         isLoadingChangelogs = true
         errorMessage = nil
         actionMessage = nil
-        changelogByLocale = [:]
-        changelogIDByLocale = [:]
-        locales = []
-        selectedLocale = nil
-        dirtyLocales.removeAll()
 
         do {
             let changelogs = try await appStoreConnect.fetchChangelogs(versionID)
@@ -367,101 +510,7 @@ struct AppDetailView: View {
         isLoadingChangelogs = false
     }
 
-    private func displayName(for locale: String) -> String {
-        Locale.current.localizedString(forIdentifier: locale) ?? locale
-    }
-
-    private var selectedVersion: AppStoreVersionSummary? {
-        versions.first { $0.id == selectedVersionID }
-    }
-
-    private var canEditChangelog: Bool {
-        selectedVersion?.isEditable ?? false
-    }
-
-    private var changelogFooterText: String {
-        guard let state = selectedVersion?.state?.uppercased() else {
-            return "Changelog editing is unavailable for released versions."
-        }
-        if state == "PENDING_DEVELOPER_RELEASE" {
-            return "Changelog editing is unavailable while the app is pending developer release."
-        }
-        return "Changelog editing is unavailable for released versions."
-    }
-
-    private var canCreateVersion: Bool {
-        let normalizedState = selectedVersion?.state?.uppercased()
-        return normalizedState != "PENDING_DEVELOPER_RELEASE"
-    }
-
-    private var canSaveChangelog: Bool {
-        guard let locale = selectedLocale,
-              dirtyLocales.contains(locale),
-              let localizationID = changelogIDByLocale[locale],
-              !localizationID.isEmpty,
-              canEditChangelog
-        else { return false }
-        return !isSaving
-    }
-
-    private var platformRawForNewVersion: String? {
-        guard canCreateVersion else { return nil }
-        return selectedVersion?.platform ?? versions.first?.platform
-    }
-
-    private var newVersionSheet: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Create New Version")
-                .font(.headline)
-            TextField("Version number", text: $newVersionString)
-                .textFieldStyle(.roundedBorder)
-            HStack {
-                Spacer()
-                Button("Cancel") {
-                    newVersionString = ""
-                    showNewVersionSheet = false
-                }
-                Button {
-                    Task {
-                        await createNewVersion()
-                    }
-                } label: {
-                    if isSaving {
-                        ProgressView()
-                            .controlSize(.small)
-                    } else {
-                        Text("Create")
-                    }
-                }
-                .disabled(isSaving || newVersionString.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || platformRawForNewVersion == nil)
-                .buttonStyle(.borderedProminent)
-            }
-        }
-        .padding(20)
-        .frame(width: 320)
-    }
-
-    private func loadVersions() async {
-        isLoadingVersions = true
-        errorMessage = nil
-        actionMessage = nil
-
-        do {
-            let fetched = try await appStoreConnect.fetchAppVersions(app.id)
-            versions = fetched
-            if let selected = selectedVersionID, fetched.contains(where: { $0.id == selected }) {
-                selectedVersionID = selected
-            } else {
-                selectedVersionID = fetched.first?.id
-            }
-        } catch {
-            errorMessage = "Failed to load versions: \(error.localizedDescription)"
-        }
-
-        isLoadingVersions = false
-    }
-
-    private func saveCurrentChangelog() async {
+    func saveCurrentChangelog() async {
         guard let locale = selectedLocale,
               let localizationID = changelogIDByLocale[locale],
               let text = changelogByLocale[locale]
@@ -474,6 +523,9 @@ struct AppDetailView: View {
         do {
             try await appStoreConnect.updateChangelog(localizationID, text)
             dirtyLocales.remove(locale)
+            if dirtyLocales.isEmpty, let versionID = selectedVersionID {
+                draftsByVersion[versionID] = nil
+            }
             actionMessage = "Changelog updated."
         } catch {
             errorMessage = "Failed to update changelog: \(error.localizedDescription)"
@@ -482,7 +534,7 @@ struct AppDetailView: View {
         isSaving = false
     }
 
-    private func createNewVersion() async {
+    func createNewVersion() async {
         guard let platformRaw = platformRawForNewVersion else { return }
         let trimmed = newVersionString.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
@@ -504,4 +556,16 @@ struct AppDetailView: View {
 
         isSaving = false
     }
+
+    func displayName(for locale: String) -> String {
+        Locale.current.localizedString(forIdentifier: locale) ?? locale
+    }
+}
+
+private struct VersionDraft: Hashable {
+    var changelogByLocale: [String: String]
+    var changelogIDByLocale: [String: String]
+    var locales: [String]
+    var selectedLocale: String?
+    var dirtyLocales: Set<String>
 }
