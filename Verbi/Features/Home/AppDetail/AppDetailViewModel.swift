@@ -73,7 +73,7 @@ final class AppDetailViewModel {
 
     var platformRawForNewVersion: String? {
         guard canCreateVersion else { return nil }
-        return selectedVersion?.platform ?? versions.first?.platform
+        return selectedVersion?.platform ?? versions.first?.platform ?? app.platform
     }
 
     var selectedChangelogText: String {

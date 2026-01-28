@@ -260,10 +260,10 @@ struct AppDetailViewModelTests {
     @Test
     func saveCurrentChangelog_withMissingData_doesNothing() async throws {
         // GIVEN a view model without proper changelog data
-        var updateCalled = false
+        let updateCalled = Mutex(false)
         let sut = withDependencies {
             $0.appStoreConnectAPI.updateChangelog = { _, _ in
-                updateCalled = true
+                updateCalled.withLock { $0 = true }
             }
         } operation: {
             AppDetailViewModel(app: .stub)
@@ -274,7 +274,7 @@ struct AppDetailViewModelTests {
         await sut.saveCurrentChangelog()
 
         // THEN the update is not called
-        #expect(updateCalled == false)
+        #expect(updateCalled.withLock { $0 } == false)
         #expect(sut.isSaving == false)
     }
 
@@ -366,10 +366,10 @@ struct AppDetailViewModelTests {
     @Test
     func createNewVersion_withEmptyString_doesNothing() async throws {
         // GIVEN a view model with an empty version string
-        var createCalled = false
+        let createCalled = Mutex(false)
         let sut = withDependencies {
             $0.appStoreConnectAPI.createAppVersion = { _, _, _ in
-                createCalled = true
+                createCalled.withLock { $0 = true }
                 return AppStoreVersionSummary(
                     id: "id",
                     version: "1.0",
@@ -399,7 +399,7 @@ struct AppDetailViewModelTests {
         await sut.createNewVersion()
 
         // THEN the create is not called
-        #expect(createCalled == false)
+        #expect(createCalled.withLock { $0 } == false)
         #expect(sut.isSaving == false)
     }
 
