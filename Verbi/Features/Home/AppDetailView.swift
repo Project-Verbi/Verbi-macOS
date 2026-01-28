@@ -133,6 +133,7 @@ struct AppDetailView: View {
                             changelogFooterText: viewModel.changelogFooterText,
                             locales: viewModel.locales,
                             selectedLocale: viewModel.selectedLocale,
+                            canCopyFromPrevious: viewModel.canCopyChangelogFromPreviousVersion,
                             onChangelogChanged: { newValue in
                                 viewModel.updateSelectedChangelogText(newValue)
                             },
@@ -143,6 +144,11 @@ struct AppDetailView: View {
                             },
                             onLanguagePickerTapped: {
                                 viewModel.showLanguagePicker = true
+                            },
+                            onCopyFromPreviousTapped: {
+                                Task {
+                                    await viewModel.copyChangelogFromPreviousVersion()
+                                }
                             }
                         )
                         .popover(isPresented: $viewModel.showLanguagePicker, arrowEdge: .bottom) {

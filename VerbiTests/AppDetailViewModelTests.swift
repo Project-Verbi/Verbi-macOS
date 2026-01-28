@@ -763,4 +763,560 @@ struct AppDetailViewModelTests {
         // THEN it returns an empty string
         #expect(text == "")
     }
+
+    // MARK: - previousVersion Tests
+
+    @Test
+    func previousVersion_returnsVersionBeforeSelected() {
+        // GIVEN a view model with multiple versions where the first is selected
+        let sut = AppDetailViewModel(app: .stub)
+        sut.versions = [
+            AppStoreVersionSummary(
+                id: "version-1",
+                version: "2.0.0",
+                state: "PREPARE_FOR_SUBMISSION",
+                platform: "IOS",
+                kind: .current,
+                isEditable: true
+            ),
+            AppStoreVersionSummary(
+                id: "version-2",
+                version: "1.9.0",
+                state: "READY_FOR_SALE",
+                platform: "IOS",
+                kind: .current,
+                isEditable: false
+            )
+        ]
+        sut.selectedVersionID = "version-1"
+
+        // WHEN getting the previous version
+        let previous = sut.previousVersion
+
+        // THEN it returns the version immediately after in the list (which is the previous version)
+        #expect(previous?.id == "version-2")
+        #expect(previous?.version == "1.9.0")
+    }
+
+    @Test
+    func previousVersion_returnsNilWhenLastVersionSelected() {
+        // GIVEN a view model with the last version selected
+        let sut = AppDetailViewModel(app: .stub)
+        sut.versions = [
+            AppStoreVersionSummary(
+                id: "version-1",
+                version: "2.0.0",
+                state: "PREPARE_FOR_SUBMISSION",
+                platform: "IOS",
+                kind: .current,
+                isEditable: true
+            ),
+            AppStoreVersionSummary(
+                id: "version-2",
+                version: "1.9.0",
+                state: "READY_FOR_SALE",
+                platform: "IOS",
+                kind: .current,
+                isEditable: false
+            )
+        ]
+        sut.selectedVersionID = "version-2"
+
+        // WHEN getting the previous version
+        let previous = sut.previousVersion
+
+        // THEN it returns nil because this is the last version in the list
+        #expect(previous == nil)
+    }
+
+    @Test
+    func previousVersion_returnsNilWhenNoVersions() {
+        // GIVEN a view model with no versions
+        let sut = AppDetailViewModel(app: .stub)
+        sut.versions = []
+        sut.selectedVersionID = nil
+
+        // WHEN getting the previous version
+        let previous = sut.previousVersion
+
+        // THEN it returns nil
+        #expect(previous == nil)
+    }
+
+    @Test
+    func previousVersion_returnsNilWhenNoVersionSelected() {
+        // GIVEN a view model with versions but none selected
+        let sut = AppDetailViewModel(app: .stub)
+        sut.versions = [
+            AppStoreVersionSummary(
+                id: "version-1",
+                version: "1.0.0",
+                state: "PREPARE_FOR_SUBMISSION",
+                platform: "IOS",
+                kind: .current,
+                isEditable: true
+            )
+        ]
+        sut.selectedVersionID = nil
+
+        // WHEN getting the previous version
+        let previous = sut.previousVersion
+
+        // THEN it returns nil
+        #expect(previous == nil)
+    }
+
+    @Test
+    func previousVersion_returnsNilWhenOnlyOneVersion() {
+        // GIVEN a view model with only one version
+        let sut = AppDetailViewModel(app: .stub)
+        sut.versions = [
+            AppStoreVersionSummary(
+                id: "version-1",
+                version: "1.0.0",
+                state: "PREPARE_FOR_SUBMISSION",
+                platform: "IOS",
+                kind: .current,
+                isEditable: true
+            )
+        ]
+        sut.selectedVersionID = "version-1"
+
+        // WHEN getting the previous version
+        let previous = sut.previousVersion
+
+        // THEN it returns nil because there's no previous version
+        #expect(previous == nil)
+    }
+
+    // MARK: - canCopyChangelogFromPreviousVersion Tests
+
+    @Test
+    func canCopyChangelogFromPreviousVersion_returnsTrueWhenConditionsMet() {
+        // GIVEN a view model with editable version and available locales
+        let sut = AppDetailViewModel(app: .stub)
+        sut.versions = [
+            AppStoreVersionSummary(
+                id: "version-1",
+                version: "2.0.0",
+                state: "PREPARE_FOR_SUBMISSION",
+                platform: "IOS",
+                kind: .current,
+                isEditable: true
+            ),
+            AppStoreVersionSummary(
+                id: "version-2",
+                version: "1.9.0",
+                state: "READY_FOR_SALE",
+                platform: "IOS",
+                kind: .current,
+                isEditable: false
+            )
+        ]
+        sut.selectedVersionID = "version-1"
+        sut.locales = ["en-US"]
+
+        // WHEN checking if can copy from previous
+        let canCopy = sut.canCopyChangelogFromPreviousVersion
+
+        // THEN it returns true
+        #expect(canCopy == true)
+    }
+
+    @Test
+    func canCopyChangelogFromPreviousVersion_returnsFalseWhenNoPreviousVersion() {
+        // GIVEN a view model with only one version (no previous)
+        let sut = AppDetailViewModel(app: .stub)
+        sut.versions = [
+            AppStoreVersionSummary(
+                id: "version-1",
+                version: "1.0.0",
+                state: "PREPARE_FOR_SUBMISSION",
+                platform: "IOS",
+                kind: .current,
+                isEditable: true
+            )
+        ]
+        sut.selectedVersionID = "version-1"
+        sut.locales = ["en-US"]
+
+        // WHEN checking if can copy from previous
+        let canCopy = sut.canCopyChangelogFromPreviousVersion
+
+        // THEN it returns false because there's no previous version
+        #expect(canCopy == false)
+    }
+
+    @Test
+    func canCopyChangelogFromPreviousVersion_returnsFalseWhenNoLocales() {
+        // GIVEN a view model with editable version but no locales
+        let sut = AppDetailViewModel(app: .stub)
+        sut.versions = [
+            AppStoreVersionSummary(
+                id: "version-1",
+                version: "2.0.0",
+                state: "PREPARE_FOR_SUBMISSION",
+                platform: "IOS",
+                kind: .current,
+                isEditable: true
+            ),
+            AppStoreVersionSummary(
+                id: "version-2",
+                version: "1.9.0",
+                state: "READY_FOR_SALE",
+                platform: "IOS",
+                kind: .current,
+                isEditable: false
+            )
+        ]
+        sut.selectedVersionID = "version-1"
+        sut.locales = []
+
+        // WHEN checking if can copy from previous
+        let canCopy = sut.canCopyChangelogFromPreviousVersion
+
+        // THEN it returns false because there are no locales to copy to
+        #expect(canCopy == false)
+    }
+
+    @Test
+    func canCopyChangelogFromPreviousVersion_returnsFalseWhenNotEditable() {
+        // GIVEN a view model with non-editable version
+        let sut = AppDetailViewModel(app: .stub)
+        sut.versions = [
+            AppStoreVersionSummary(
+                id: "version-1",
+                version: "2.0.0",
+                state: "READY_FOR_SALE",
+                platform: "IOS",
+                kind: .current,
+                isEditable: false
+            ),
+            AppStoreVersionSummary(
+                id: "version-2",
+                version: "1.9.0",
+                state: "READY_FOR_SALE",
+                platform: "IOS",
+                kind: .current,
+                isEditable: false
+            )
+        ]
+        sut.selectedVersionID = "version-1"
+        sut.locales = ["en-US"]
+
+        // WHEN checking if can copy from previous
+        let canCopy = sut.canCopyChangelogFromPreviousVersion
+
+        // THEN it returns false because the version is not editable
+        #expect(canCopy == false)
+    }
+
+    // MARK: - copyChangelogFromPreviousVersion Tests
+
+    @Test
+    func copyChangelogFromPreviousVersion_success_copiesChangelogForAllLocales() async throws {
+        // GIVEN a view model with multiple locales and previous version has changelogs for some
+        let previousChangelogs = [
+            AppChangelog(id: "loc-1", locale: "en-US", text: "English changelog"),
+            AppChangelog(id: "loc-2", locale: "de-DE", text: "German changelog")
+        ]
+
+        let sut = withDependencies {
+            $0.appStoreConnectAPI.fetchChangelogs = { versionID in
+                if versionID == "version-2" {
+                    return previousChangelogs
+                }
+                return []
+            }
+        } operation: {
+            AppDetailViewModel(app: .stub)
+        }
+
+        sut.versions = [
+            AppStoreVersionSummary(
+                id: "version-1",
+                version: "2.0.0",
+                state: "PREPARE_FOR_SUBMISSION",
+                platform: "IOS",
+                kind: .current,
+                isEditable: true
+            ),
+            AppStoreVersionSummary(
+                id: "version-2",
+                version: "1.9.0",
+                state: "READY_FOR_SALE",
+                platform: "IOS",
+                kind: .current,
+                isEditable: false
+            )
+        ]
+        sut.selectedVersionID = "version-1"
+        sut.selectedLocale = "en-US"
+        sut.changelogIDByLocale = ["en-US": "loc-en", "de-DE": "loc-de", "fr-FR": "loc-fr"]
+        sut.locales = ["en-US", "de-DE", "fr-FR"] // fr-FR doesn't exist in previous
+        sut.changelogByLocale = ["en-US": "", "de-DE": "", "fr-FR": ""]
+        sut.dirtyLocales = []
+
+        // WHEN copying changelog from previous version
+        await sut.copyChangelogFromPreviousVersion()
+
+        // THEN changelogs are copied for matching locales and marked as dirty
+        #expect(sut.changelogByLocale["en-US"] == "English changelog")
+        #expect(sut.changelogByLocale["de-DE"] == "German changelog")
+        #expect(sut.changelogByLocale["fr-FR"] == "") // New locale remains empty
+        #expect(sut.dirtyLocales.contains("en-US"))
+        #expect(sut.dirtyLocales.contains("de-DE"))
+        #expect(!sut.dirtyLocales.contains("fr-FR")) // Not marked dirty since not copied
+        #expect(sut.actionMessage == "Copied changelogs from version 1.9.0 for 2 locale(s).")
+        #expect(sut.isLoadingChangelogs == false)
+        #expect(sut.errorMessage == nil)
+    }
+
+    @Test
+    func copyChangelogFromPreviousVersion_withNewLocale_keepsEmpty() async throws {
+        // GIVEN a view model with a new locale not in previous version
+        let previousChangelogs = [
+            AppChangelog(id: "loc-1", locale: "en-US", text: "English changelog")
+        ]
+
+        let sut = withDependencies {
+            $0.appStoreConnectAPI.fetchChangelogs = { _ in previousChangelogs }
+        } operation: {
+            AppDetailViewModel(app: .stub)
+        }
+
+        sut.versions = [
+            AppStoreVersionSummary(
+                id: "version-1",
+                version: "2.0.0",
+                state: "PREPARE_FOR_SUBMISSION",
+                platform: "IOS",
+                kind: .current,
+                isEditable: true
+            ),
+            AppStoreVersionSummary(
+                id: "version-2",
+                version: "1.9.0",
+                state: "READY_FOR_SALE",
+                platform: "IOS",
+                kind: .current,
+                isEditable: false
+            )
+        ]
+        sut.selectedVersionID = "version-1"
+        sut.locales = ["en-US", "es-ES"] // es-ES is new, not in previous
+        sut.changelogByLocale = ["en-US": "", "es-ES": ""]
+
+        // WHEN copying changelog from previous version
+        await sut.copyChangelogFromPreviousVersion()
+
+        // THEN en-US is copied, es-ES remains empty
+        #expect(sut.changelogByLocale["en-US"] == "English changelog")
+        #expect(sut.changelogByLocale["es-ES"] == "")
+        #expect(sut.dirtyLocales.contains("en-US"))
+        #expect(!sut.dirtyLocales.contains("es-ES"))
+    }
+
+    @Test
+    func copyChangelogFromPreviousVersion_withEmptyChangelogs_skipsEmptyOnes() async throws {
+        // GIVEN a view model where previous version has empty changelog for some locales
+        let previousChangelogs = [
+            AppChangelog(id: "loc-1", locale: "en-US", text: "English changelog"),
+            AppChangelog(id: "loc-2", locale: "de-DE", text: "") // Empty
+        ]
+
+        let sut = withDependencies {
+            $0.appStoreConnectAPI.fetchChangelogs = { _ in previousChangelogs }
+        } operation: {
+            AppDetailViewModel(app: .stub)
+        }
+
+        sut.versions = [
+            AppStoreVersionSummary(
+                id: "version-1",
+                version: "2.0.0",
+                state: "PREPARE_FOR_SUBMISSION",
+                platform: "IOS",
+                kind: .current,
+                isEditable: true
+            ),
+            AppStoreVersionSummary(
+                id: "version-2",
+                version: "1.9.0",
+                state: "READY_FOR_SALE",
+                platform: "IOS",
+                kind: .current,
+                isEditable: false
+            )
+        ]
+        sut.selectedVersionID = "version-1"
+        sut.locales = ["en-US", "de-DE"]
+        sut.changelogByLocale = ["en-US": "", "de-DE": ""]
+        sut.dirtyLocales = []
+
+        // WHEN copying changelog from previous version
+        await sut.copyChangelogFromPreviousVersion()
+
+        // THEN only non-empty changelog is copied
+        #expect(sut.changelogByLocale["en-US"] == "English changelog")
+        #expect(sut.changelogByLocale["de-DE"] == "") // Still empty
+        #expect(sut.dirtyLocales.contains("en-US"))
+        #expect(!sut.dirtyLocales.contains("de-DE"))
+        #expect(sut.actionMessage == "Copied changelogs from version 1.9.0 for 1 locale(s).")
+    }
+
+    @Test
+    func copyChangelogFromPreviousVersion_withNoMatchingLocales_showsError() async throws {
+        // GIVEN a view model where previous version has no matching locales
+        let previousChangelogs = [
+            AppChangelog(id: "loc-1", locale: "ja-JP", text: "Japanese changelog")
+        ]
+
+        let sut = withDependencies {
+            $0.appStoreConnectAPI.fetchChangelogs = { _ in previousChangelogs }
+        } operation: {
+            AppDetailViewModel(app: .stub)
+        }
+
+        sut.versions = [
+            AppStoreVersionSummary(
+                id: "version-1",
+                version: "2.0.0",
+                state: "PREPARE_FOR_SUBMISSION",
+                platform: "IOS",
+                kind: .current,
+                isEditable: true
+            ),
+            AppStoreVersionSummary(
+                id: "version-2",
+                version: "1.9.0",
+                state: "READY_FOR_SALE",
+                platform: "IOS",
+                kind: .current,
+                isEditable: false
+            )
+        ]
+        sut.selectedVersionID = "version-1"
+        sut.locales = ["en-US", "de-DE"] // None match previous version
+        sut.changelogByLocale = ["en-US": "", "de-DE": ""]
+
+        // WHEN copying changelog from previous version
+        await sut.copyChangelogFromPreviousVersion()
+
+        // THEN an error is shown because no locales were copied
+        #expect(sut.errorMessage?.contains("No changelogs found") == true)
+        #expect(sut.isLoadingChangelogs == false)
+    }
+
+    @Test
+    func copyChangelogFromPreviousVersion_withNoChangelogs_showsError() async throws {
+        // GIVEN a view model where previous version has no changelogs
+        let sut = withDependencies {
+            $0.appStoreConnectAPI.fetchChangelogs = { _ in [] }
+        } operation: {
+            AppDetailViewModel(app: .stub)
+        }
+
+        sut.versions = [
+            AppStoreVersionSummary(
+                id: "version-1",
+                version: "2.0.0",
+                state: "PREPARE_FOR_SUBMISSION",
+                platform: "IOS",
+                kind: .current,
+                isEditable: true
+            ),
+            AppStoreVersionSummary(
+                id: "version-2",
+                version: "1.9.0",
+                state: "READY_FOR_SALE",
+                platform: "IOS",
+                kind: .current,
+                isEditable: false
+            )
+        ]
+        sut.selectedVersionID = "version-1"
+        sut.locales = ["en-US"]
+        sut.changelogByLocale = ["en-US": ""]
+
+        // WHEN copying changelog from previous version
+        await sut.copyChangelogFromPreviousVersion()
+
+        // THEN an error message is shown
+        #expect(sut.errorMessage?.contains("No changelogs found") == true)
+        #expect(sut.isLoadingChangelogs == false)
+    }
+
+    @Test
+    func copyChangelogFromPreviousVersion_withError_showsErrorMessage() async throws {
+        // GIVEN a view model with a failing fetch
+        let sut = withDependencies {
+            $0.appStoreConnectAPI.fetchChangelogs = { _ in
+                throw NSError(domain: "test", code: 1)
+            }
+        } operation: {
+            AppDetailViewModel(app: .stub)
+        }
+
+        sut.versions = [
+            AppStoreVersionSummary(
+                id: "version-1",
+                version: "2.0.0",
+                state: "PREPARE_FOR_SUBMISSION",
+                platform: "IOS",
+                kind: .current,
+                isEditable: true
+            ),
+            AppStoreVersionSummary(
+                id: "version-2",
+                version: "1.9.0",
+                state: "READY_FOR_SALE",
+                platform: "IOS",
+                kind: .current,
+                isEditable: false
+            )
+        ]
+        sut.selectedVersionID = "version-1"
+        sut.locales = ["en-US"]
+
+        // WHEN copying changelog from previous version
+        await sut.copyChangelogFromPreviousVersion()
+
+        // THEN an error message is set
+        #expect(sut.errorMessage?.contains("Failed to copy changelog") == true)
+        #expect(sut.isLoadingChangelogs == false)
+    }
+
+    @Test
+    func copyChangelogFromPreviousVersion_withNoPreviousVersion_doesNothing() async throws {
+        // GIVEN a view model with no previous version
+        let fetchCalled = Mutex(false)
+        let sut = withDependencies {
+            $0.appStoreConnectAPI.fetchChangelogs = { _ in
+                fetchCalled.withLock { $0 = true }
+                return []
+            }
+        } operation: {
+            AppDetailViewModel(app: .stub)
+        }
+
+        sut.versions = [
+            AppStoreVersionSummary(
+                id: "version-1",
+                version: "1.0.0",
+                state: "PREPARE_FOR_SUBMISSION",
+                platform: "IOS",
+                kind: .current,
+                isEditable: true
+            )
+        ]
+        sut.selectedVersionID = "version-1"
+
+        // WHEN copying changelog from previous version
+        await sut.copyChangelogFromPreviousVersion()
+
+        // THEN the fetch is not called and nothing changes
+        #expect(fetchCalled.withLock { $0 } == false)
+        #expect(sut.isLoadingChangelogs == false)
+    }
 }
