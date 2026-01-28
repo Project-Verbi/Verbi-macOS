@@ -5,7 +5,6 @@ struct AppDetailChangelogSectionView: View {
     let canEditChangelog: Bool
     let canSaveChangelog: Bool
     let isSaving: Bool
-    let errorMessage: String?
     let changelogText: String
     let changelogFooterText: String
     let locales: [String]
@@ -18,11 +17,7 @@ struct AppDetailChangelogSectionView: View {
         VStack(alignment: .leading, spacing: 12) {
             header
 
-            if let errorMessage {
-                Text(errorMessage)
-                    .font(.subheadline)
-                    .foregroundStyle(.orange)
-            } else if selectedVersion == nil {
+            if selectedVersion == nil {
                 Text("Select a version to view changelogs.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)

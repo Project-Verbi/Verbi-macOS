@@ -26,6 +26,16 @@ struct AppDetailView: View {
         .task(id: viewModel.selectedVersionID) {
             await viewModel.loadChangelogs()
         }
+        .alert("Error", isPresented: .init(
+            get: { viewModel.errorMessage != nil },
+            set: { if !$0 { viewModel.errorMessage = nil } }
+        )) {
+            Button("OK") {
+                viewModel.errorMessage = nil
+            }
+        } message: {
+            Text(viewModel.errorMessage ?? "")
+        }
     }
 
     private var sidebar: some View {
@@ -119,7 +129,6 @@ struct AppDetailView: View {
                             canEditChangelog: viewModel.canEditChangelog,
                             canSaveChangelog: viewModel.canSaveChangelog,
                             isSaving: viewModel.isSaving,
-                            errorMessage: viewModel.errorMessage,
                             changelogText: viewModel.selectedChangelogText,
                             changelogFooterText: viewModel.changelogFooterText,
                             locales: viewModel.locales,
