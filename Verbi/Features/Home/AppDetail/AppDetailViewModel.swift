@@ -81,6 +81,22 @@ final class AppDetailViewModel {
         return changelogByLocale[key] ?? ""
     }
 
+    /// Returns the version that comes immediately before the currently selected version.
+    var previousVersion: AppStoreVersionSummary? {
+        guard let selectedVersionID = selectedVersionID,
+              let selectedIndex = versions.firstIndex(where: { $0.id == selectedVersionID }),
+              selectedIndex < versions.count - 1 else {
+            return nil
+        }
+        return versions[selectedIndex + 1]
+    }
+
+    /// Checks if the previous version exists and has changelogs that could be copied.
+    var canCopyChangelogFromPreviousVersion: Bool {
+        guard previousVersion != nil else { return false }
+        return !locales.isEmpty && canEditChangelog
+    }
+
     func setSelectedVersionID(_ newValue: String?) {
         if let currentID = selectedVersionID, currentID != newValue, !dirtyLocales.isEmpty {
             draftsByVersion[currentID] = VersionDraft(
@@ -200,6 +216,45 @@ final class AppDetailViewModel {
         }
 
         isSaving = false
+    }
+
+    /// Copies the changelog text from the previous version for all current locales.
+    /// Locales that don't exist in the previous version will remain empty.
+    func copyChangelogFromPreviousVersion() async {
+        guard let previousVersion = previousVersion,
+              canEditChangelog else { return }
+
+        isLoadingChangelogs = true
+        errorMessage = nil
+        actionMessage = nil
+
+        do {
+            let previousChangelogs = try await apiClient.fetchChangelogs(previousVersion.id)
+            let previousChangelogsByLocale = Dictionary(
+                previousChangelogs.map { ($0.locale, $0.text) },
+                uniquingKeysWith: { first, _ in first }
+            )
+
+            var copiedCount = 0
+            for locale in locales {
+                if let changelogText = previousChangelogsByLocale[locale], !changelogText.isEmpty {
+                    changelogByLocale[locale] = changelogText
+                    dirtyLocales.insert(locale)
+                    copiedCount += 1
+                }
+                // If locale doesn't exist in previous version, leave it empty (no action needed)
+            }
+
+            if copiedCount > 0 {
+                actionMessage = "Copied changelogs from version \(previousVersion.version) for \(copiedCount) locale(s)."
+            } else {
+                errorMessage = "No changelogs found in version \(previousVersion.version) for any of the current locales."
+            }
+        } catch {
+            errorMessage = "Failed to copy changelog: \(error.localizedDescription)"
+        }
+
+        isLoadingChangelogs = false
     }
 
     func createNewVersion() async {

@@ -9,9 +9,11 @@ struct AppDetailChangelogSectionView: View {
     let changelogFooterText: String
     let locales: [String]
     let selectedLocale: String?
+    let canCopyFromPrevious: Bool
     let onChangelogChanged: (String) -> Void
     let onSaveTapped: () -> Void
     let onLanguagePickerTapped: () -> Void
+    let onCopyFromPreviousTapped: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -26,11 +28,18 @@ struct AppDetailChangelogSectionView: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             } else {
-                TextField("What's new", text: changelogBinding, axis: .vertical)
+                TextEditor(text: changelogBinding)
                     .font(.body)
-                    .lineLimit(5...10)
-                    .textFieldStyle(.plain)
+                    .frame(minHeight: 100, maxHeight: 200)
+                    .padding(8)
+                    .background(Color.black.opacity(0.1))
+                    .scrollContentBackground(.hidden)
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
                     .disabled(!canEditChangelog)
+
+                if canCopyFromPrevious {
+                    copyFromPreviousButton
+                }
             }
 
             if !canEditChangelog, selectedVersion != nil {
@@ -84,4 +93,89 @@ struct AppDetailChangelogSectionView: View {
             }
         )
     }
+
+    private var copyFromPreviousButton: some View {
+        Button {
+            onCopyFromPreviousTapped()
+        } label: {
+            Image(systemName: "doc.on.doc")
+                .padding(4)
+        }
+        .buttonStyle(.plain)
+        .help("Copy the changelog from the previous version")
+    }
+}
+
+#Preview("Editable with Copy") {
+    AppDetailChangelogSectionView(
+        selectedVersion: AppStoreVersionSummary(
+            id: "v1",
+            version: "2.0.0",
+            state: "PREPARE_FOR_SUBMISSION",
+            platform: "IOS",
+            kind: .current,
+            isEditable: true
+        ),
+        canEditChangelog: true,
+        canSaveChangelog: true,
+        isSaving: false,
+        changelogText: "New features in this version...",
+        changelogFooterText: "",
+        locales: ["en-US", "de-DE"],
+        selectedLocale: "en-US",
+        canCopyFromPrevious: true,
+        onChangelogChanged: { _ in },
+        onSaveTapped: { },
+        onLanguagePickerTapped: { },
+        onCopyFromPreviousTapped: { }
+    )
+    .padding()
+    .frame(width: 600)
+}
+
+#Preview("Non-editable") {
+    AppDetailChangelogSectionView(
+        selectedVersion: AppStoreVersionSummary(
+            id: "v1",
+            version: "1.0.0",
+            state: "READY_FOR_SALE",
+            platform: "IOS",
+            kind: .current,
+            isEditable: false
+        ),
+        canEditChangelog: false,
+        canSaveChangelog: false,
+        isSaving: false,
+        changelogText: "Released version changelog",
+        changelogFooterText: "Changelog editing is unavailable for released versions.",
+        locales: ["en-US"],
+        selectedLocale: "en-US",
+        canCopyFromPrevious: false,
+        onChangelogChanged: { _ in },
+        onSaveTapped: { },
+        onLanguagePickerTapped: { },
+        onCopyFromPreviousTapped: { }
+    )
+    .padding()
+    .frame(width: 600)
+}
+
+#Preview("No Version Selected") {
+    AppDetailChangelogSectionView(
+        selectedVersion: nil,
+        canEditChangelog: false,
+        canSaveChangelog: false,
+        isSaving: false,
+        changelogText: "",
+        changelogFooterText: "",
+        locales: [],
+        selectedLocale: nil,
+        canCopyFromPrevious: false,
+        onChangelogChanged: { _ in },
+        onSaveTapped: { },
+        onLanguagePickerTapped: { },
+        onCopyFromPreviousTapped: { }
+    )
+    .padding()
+    .frame(width: 600)
 }
