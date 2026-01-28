@@ -3,52 +3,25 @@ import Dependencies
 import DependenciesMacros
 import AppStoreConnect_Swift_SDK
 
-enum KeychainKeys {
-    static let appStoreConnectKey = "appstore.connect.key"
-}
-
 @DependencyClient
-struct AppStoreConnectClient {
-    var saveAPIKey: (_ key: AppStoreConnectKey) throws -> Void
-    var loadAPIKey: () throws -> AppStoreConnectKey?
-    var deleteAPIKey: () throws -> Void
-    var hasAPIKey: () throws -> Bool
+struct AppStoreConnectAPIClient {
     var validateAPIKey: @Sendable @MainActor (_ key: AppStoreConnectKey) async throws -> Void
     var fetchApps: @Sendable () async throws -> [AppStoreApp]
-    var fetchChangelogs: @Sendable @MainActor (_ appID: String) async throws -> [AppChangelog]
+    var fetchAppVersions: @Sendable @MainActor (_ appID: String) async throws -> [AppStoreVersionSummary]
+    var fetchChangelogs: @Sendable @MainActor (_ versionID: String) async throws -> [AppChangelog]
+    var updateChangelog: @Sendable @MainActor (_ localizationID: String, _ text: String) async throws -> Void
+    var createAppVersion: @Sendable @MainActor (_ appID: String, _ versionString: String, _ platformRaw: String?) async throws -> AppStoreVersionSummary
 }
 
-extension AppStoreConnectClient: DependencyKey {
-    static let liveValue = AppStoreConnectClient(
-        saveAPIKey: { key in
-            @Dependency(\.keychain) var keychain
-            let encoder = JSONEncoder()
-            let data = try encoder.encode(key)
-            try keychain.save(KeychainKeys.appStoreConnectKey, data)
-        },
-        loadAPIKey: {
-            @Dependency(\.keychain) var keychain
-            guard let data = try keychain.load(KeychainKeys.appStoreConnectKey) else {
-                return nil
-            }
-            let decoder = JSONDecoder()
-            return try decoder.decode(AppStoreConnectKey.self, from: data)
-        },
-        deleteAPIKey: {
-            @Dependency(\.keychain) var keychain
-            try keychain.delete(KeychainKeys.appStoreConnectKey)
-        },
-        hasAPIKey: {
-            @Dependency(\.keychain) var keychain
-            return try keychain.load(KeychainKeys.appStoreConnectKey) != nil
-        },
+extension AppStoreConnectAPIClient: DependencyKey {
+    static let testValue = AppStoreConnectAPIClient()
+    static let liveValue = AppStoreConnectAPIClient(
         validateAPIKey: { apiKey in
             let configuration = try makeConfiguration(
                 issuerID: apiKey.issuerID,
                 keyID: apiKey.keyID,
                 privateKey: apiKey.privateKey
             )
-            
 
             let provider = APIProvider(configuration: configuration)
 
@@ -63,9 +36,9 @@ extension AppStoreConnectClient: DependencyKey {
             _ = try await provider.request(request)
         },
         fetchApps: {
-            @Dependency(\.appStoreConnect) var appStoreConnect
-            
-            guard let apiKey = try appStoreConnect.loadAPIKey() else {
+            @Dependency(\.appStoreConnectKey) var keyClient
+
+            guard let apiKey = try keyClient.loadAPIKey() else {
                 throw AppStoreConnectError.noAPIKey
             }
 
@@ -74,9 +47,9 @@ extension AppStoreConnectClient: DependencyKey {
                 keyID: apiKey.keyID,
                 privateKey: apiKey.privateKey
             )
-            
+
             let provider = APIProvider(configuration: configuration)
-            
+
             let request = APIEndpoint
                 .v1
                 .apps
@@ -85,7 +58,7 @@ extension AppStoreConnectClient: DependencyKey {
                     fieldsApps: [.name, .bundleID, .sku, .primaryLocale, .appStoreIcon],
                     include: [.appStoreIcon]
                 ))
-            
+
             let response = try await provider.request(request)
             let apps = response.data
             let included = response.included ?? []
@@ -120,10 +93,10 @@ extension AppStoreConnectClient: DependencyKey {
                 )
             }
         },
-        fetchChangelogs: { appID in
-            @Dependency(\.appStoreConnect) var appStoreConnect
+        fetchAppVersions: { appID in
+            @Dependency(\.appStoreConnectKey) var keyClient
 
-            guard let apiKey = try appStoreConnect.loadAPIKey() else {
+            guard let apiKey = try keyClient.loadAPIKey() else {
                 throw AppStoreConnectError.noAPIKey
             }
 
@@ -134,23 +107,111 @@ extension AppStoreConnectClient: DependencyKey {
             )
 
             let provider = APIProvider(configuration: configuration)
-            guard let versionID = try await fetchLatestVersionID(for: appID, provider: provider) else {
-                return []
+            let versions = try await fetchAppStoreVersions(for: appID, provider: provider)
+            return selectVersionSummaries(from: versions)
+        },
+        fetchChangelogs: { versionID in
+            @Dependency(\.appStoreConnectKey) var keyClient
+
+            guard let apiKey = try keyClient.loadAPIKey() else {
+                throw AppStoreConnectError.noAPIKey
             }
+
+            let configuration = try makeConfiguration(
+                issuerID: apiKey.issuerID,
+                keyID: apiKey.keyID,
+                privateKey: apiKey.privateKey
+            )
+
+            let provider = APIProvider(configuration: configuration)
             return try await fetchVersionLocalizations(for: versionID, provider: provider)
+        },
+        updateChangelog: { localizationID, text in
+            @Dependency(\.appStoreConnectKey) var keyClient
+
+            guard let apiKey = try keyClient.loadAPIKey() else {
+                throw AppStoreConnectError.noAPIKey
+            }
+
+            let configuration = try makeConfiguration(
+                issuerID: apiKey.issuerID,
+                keyID: apiKey.keyID,
+                privateKey: apiKey.privateKey
+            )
+
+            let provider = APIProvider(configuration: configuration)
+            let requestBody = AppStoreVersionLocalizationUpdateRequest(
+                data: .init(
+                    type: .appStoreVersionLocalizations,
+                    id: localizationID,
+                    attributes: .init(whatsNew: text)
+                )
+            )
+            let request = APIEndpoint
+                .v1
+                .appStoreVersionLocalizations
+                .id(localizationID)
+                .patch(requestBody)
+            _ = try await provider.request(request)
+        },
+        createAppVersion: { appID, versionString, platformRaw in
+            @Dependency(\.appStoreConnectKey) var keyClient
+
+            guard let apiKey = try keyClient.loadAPIKey() else {
+                throw AppStoreConnectError.noAPIKey
+            }
+
+            let configuration = try makeConfiguration(
+                issuerID: apiKey.issuerID,
+                keyID: apiKey.keyID,
+                privateKey: apiKey.privateKey
+            )
+
+            let provider = APIProvider(configuration: configuration)
+            guard let platformRaw,
+                  let platform = Platform(rawValue: platformRaw)
+            else {
+                throw AppStoreConnectError.unsupportedPlatform
+            }
+
+            let requestBody = AppStoreVersionCreateRequest(
+                data: .init(
+                    type: .appStoreVersions,
+                    attributes: .init(
+                        platform: platform,
+                        versionString: versionString
+                    ),
+                    relationships: .init(
+                        app: .init(
+                            data: .init(
+                                type: .apps,
+                                id: appID
+                            )
+                        )
+                    )
+                )
+            )
+            let request = APIEndpoint.v1.appStoreVersions.post(requestBody)
+            let response = try await provider.request(request)
+            guard let summary = makeVersionSummary(from: response.data, kind: .upcoming) else {
+                throw AppStoreConnectError.unexpectedResponse
+            }
+            return summary
         }
     )
 }
 
 extension DependencyValues {
-    var appStoreConnect: AppStoreConnectClient {
-        get { self[AppStoreConnectClient.self] }
-        set { self[AppStoreConnectClient.self] = newValue }
+    var appStoreConnectAPI: AppStoreConnectAPIClient {
+        get { self[AppStoreConnectAPIClient.self] }
+        set { self[AppStoreConnectAPIClient.self] = newValue }
     }
 }
 
 enum AppStoreConnectError: Error {
     case noAPIKey
+    case unsupportedPlatform
+    case unexpectedResponse
 }
 
 private func makeConfiguration(issuerID: String, keyID: String, privateKey: String) throws -> APIConfiguration {
@@ -202,7 +263,7 @@ private func fetchAppStoreVersions(for appID: String, provider: APIProvider) asy
         .id(appID)
         .appStoreVersions
         .get(parameters: .init(
-            fieldsAppStoreVersions: [.versionString, .appStoreState, .createdDate],
+            fieldsAppStoreVersions: [.versionString, .appStoreState, .createdDate, .platform],
             limit: 5
         ))
     let response = try await provider.request(request)
@@ -250,11 +311,6 @@ private func currentIconURL(for app: App, from buildIcons: [String: BuildIcon]) 
     return URL(string: urlString)
 }
 
-private func fetchLatestVersionID(for appID: String, provider: APIProvider) async throws -> String? {
-    let versions = try await fetchAppStoreVersions(for: appID, provider: provider)
-    return latestVersion(from: versions)?.id
-}
-
 private func latestVersion(from versions: [AppStoreVersion]) -> AppStoreVersion? {
     versions.max { lhs, rhs in
         let lhsDate = lhs.attributes?.createdDate ?? .distantPast
@@ -278,22 +334,49 @@ private func fetchVersionLocalizations(for versionID: String, provider: APIProvi
         guard let attributes = localization.attributes,
               let locale = attributes.locale
         else { return nil }
-        return AppChangelog(id: locale, locale: locale, text: attributes.whatsNew ?? "")
+        return AppChangelog(id: localization.id, locale: locale, text: attributes.whatsNew ?? "")
     }
 }
 
-struct AppsResponse: Codable {
-    let data: [AppData]
-    
-    struct AppData: Codable {
-        let id: String
-        let attributes: AppAttributes
+private func selectVersionSummaries(from versions: [AppStoreVersion]) -> [AppStoreVersionSummary] {
+    guard !versions.isEmpty else { return [] }
+    let finalStates: Set<AppStoreVersionState> = [.readyForSale, .pendingDeveloperRelease]
+    let released = latestVersion(from: versions.filter { version in
+        guard let state = version.attributes?.appStoreState else { return false }
+        return finalStates.contains(state)
+    })
+    let upcoming = latestVersion(from: versions.filter { version in
+        guard let state = version.attributes?.appStoreState else { return true }
+        return !finalStates.contains(state)
+    })
+
+    var summaries: [AppStoreVersionSummary] = []
+    if let upcoming, let summary = makeVersionSummary(from: upcoming, kind: .upcoming) {
+        summaries.append(summary)
     }
-    
-    struct AppAttributes: Codable {
-        let name: String
-        let bundleID: String
-        let primaryLocale: String
-        let sku: String
+    if let released, released.id != upcoming?.id,
+       let summary = makeVersionSummary(from: released, kind: .current) {
+        summaries.append(summary)
     }
+    if summaries.isEmpty, let summary = makeVersionSummary(from: versions.sorted { $0.attributes?.createdDate ?? .distantPast > $1.attributes?.createdDate ?? .distantPast }.first, kind: .current) {
+        summaries.append(summary)
+    }
+    return summaries
+}
+
+private func makeVersionSummary(from version: AppStoreVersion?, kind: AppStoreVersionSummary.Kind) -> AppStoreVersionSummary? {
+    guard let version, let attributes = version.attributes, let versionString = attributes.versionString else {
+        return nil
+    }
+    let state = attributes.appStoreState?.rawValue
+    let normalizedState = state?.uppercased()
+    let isEditable = normalizedState != "READY_FOR_SALE" && normalizedState != "PENDING_DEVELOPER_RELEASE"
+    return AppStoreVersionSummary(
+        id: version.id,
+        version: versionString,
+        state: state,
+        platform: attributes.platform?.rawValue,
+        kind: kind,
+        isEditable: isEditable
+    )
 }

@@ -5,7 +5,7 @@ struct RootView: View {
     @State private var showOnboarding = false
     @State private var isCheckingKeychain = true
     @State private var errorMessage: String?
-    @Dependency(\.appStoreConnect) var appStoreConnect
+    @Dependency(\.appStoreConnectKey) var appStoreConnectKey
     
     var body: some View {
         Group {
@@ -61,7 +61,7 @@ struct RootView: View {
         errorMessage = nil
         
         do {
-            let hasKey = try appStoreConnect.hasAPIKey()
+            let hasKey = try appStoreConnectKey.hasAPIKey()
             showOnboarding = !hasKey
         } catch {
             errorMessage = "Failed to access keychain: \(error.localizedDescription)"
@@ -72,7 +72,7 @@ struct RootView: View {
 
     private func resetAPIKey() {
         do {
-            try appStoreConnect.deleteAPIKey()
+            try appStoreConnectKey.deleteAPIKey()
             showOnboarding = true
         } catch {
             errorMessage = "Failed to reset API key: \(error.localizedDescription)"

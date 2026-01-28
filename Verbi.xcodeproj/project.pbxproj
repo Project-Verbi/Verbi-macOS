@@ -9,7 +9,6 @@
 /* Begin PBXBuildFile section */
 		4A1313162F1D4F3900F0A47D /* Dependencies in Frameworks */ = {isa = PBXBuildFile; productRef = 4A1313152F1D4F3900F0A47D /* Dependencies */; };
 		4A1313182F1D4F3900F0A47D /* DependenciesMacros in Frameworks */ = {isa = PBXBuildFile; productRef = 4A1313172F1D4F3900F0A47D /* DependenciesMacros */; };
-		4A13131A2F1D4F3900F0A47D /* DependenciesTestSupport in Frameworks */ = {isa = PBXBuildFile; productRef = 4A1313192F1D4F3900F0A47D /* DependenciesTestSupport */; };
 		4A13131D2F1D4F5800F0A47D /* AppStoreConnect-Swift-SDK in Frameworks */ = {isa = PBXBuildFile; productRef = 4A13131C2F1D4F5800F0A47D /* AppStoreConnect-Swift-SDK */; };
 		4A1313202F1D4F8600F0A47D /* SQLiteData in Frameworks */ = {isa = PBXBuildFile; productRef = 4A13131F2F1D4F8600F0A47D /* SQLiteData */; };
 		4A1313222F1D4F8600F0A47D /* SQLiteDataTestSupport in Frameworks */ = {isa = PBXBuildFile; productRef = 4A1313212F1D4F8600F0A47D /* SQLiteDataTestSupport */; };
@@ -73,7 +72,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				4A1313222F1D4F8600F0A47D /* SQLiteDataTestSupport in Frameworks */,
-				4A13131A2F1D4F3900F0A47D /* DependenciesTestSupport in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -154,7 +152,6 @@
 			);
 			name = VerbiTests;
 			packageProductDependencies = (
-				4A1313192F1D4F3900F0A47D /* DependenciesTestSupport */,
 				4A1313212F1D4F8600F0A47D /* SQLiteDataTestSupport */,
 			);
 			productName = VerbiTests;
@@ -355,6 +352,7 @@
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = macosx;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 			};
 			name = Debug;
@@ -412,6 +410,7 @@
 				MTL_FAST_MATH = YES;
 				SDKROOT = macosx;
 				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 			};
 			name = Release;
 		};
@@ -657,11 +656,6 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 4A1313142F1D4F3900F0A47D /* XCRemoteSwiftPackageReference "swift-dependencies" */;
 			productName = DependenciesMacros;
-		};
-		4A1313192F1D4F3900F0A47D /* DependenciesTestSupport */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 4A1313142F1D4F3900F0A47D /* XCRemoteSwiftPackageReference "swift-dependencies" */;
-			productName = DependenciesTestSupport;
 		};
 		4A13131C2F1D4F5800F0A47D /* AppStoreConnect-Swift-SDK */ = {
 			isa = XCSwiftPackageProductDependency;

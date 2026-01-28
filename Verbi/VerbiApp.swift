@@ -1,10 +1,13 @@
 import SwiftUI
+import Dependencies
 
 @main
 struct VerbiApp: App {
     var body: some Scene {
         WindowGroup {
-            RootView()
+            if !isTesting {
+                RootView()
+            }
         }
 
         WindowGroup(for: AppStoreApp.self) { $app in
