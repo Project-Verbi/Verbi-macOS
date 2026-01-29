@@ -10,10 +10,12 @@ struct AppDetailChangelogSectionView: View {
     let locales: [String]
     let selectedLocale: String?
     let canCopyFromPrevious: Bool
+    let canApplyToAllLanguages: Bool
     let onChangelogChanged: (String) -> Void
     let onSaveTapped: () -> Void
     let onLanguagePickerTapped: () -> Void
     let onCopyFromPreviousTapped: () -> Void
+    let onApplyToAllTapped: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -37,8 +39,15 @@ struct AppDetailChangelogSectionView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 10))
                     .disabled(!canEditChangelog)
 
-                if canCopyFromPrevious {
-                    copyFromPreviousButton
+                if canCopyFromPrevious || canApplyToAllLanguages {
+                    HStack(spacing: 8) {
+                        if canCopyFromPrevious {
+                            copyFromPreviousButton
+                        }
+                        if canApplyToAllLanguages {
+                            applyToAllButton
+                        }
+                    }
                 }
             }
 
@@ -104,6 +113,17 @@ struct AppDetailChangelogSectionView: View {
         .buttonStyle(.plain)
         .help("Copy the changelog from the previous version")
     }
+
+    private var applyToAllButton: some View {
+        Button {
+            onApplyToAllTapped()
+        } label: {
+            Image(systemName: "arrow.left.arrow.right.circle")
+                .padding(4)
+        }
+        .buttonStyle(.plain)
+        .help("Apply current text to all other languages")
+    }
 }
 
 #Preview("Editable with Copy") {
@@ -124,10 +144,12 @@ struct AppDetailChangelogSectionView: View {
         locales: ["en-US", "de-DE"],
         selectedLocale: "en-US",
         canCopyFromPrevious: true,
+        canApplyToAllLanguages: true,
         onChangelogChanged: { _ in },
         onSaveTapped: { },
         onLanguagePickerTapped: { },
-        onCopyFromPreviousTapped: { }
+        onCopyFromPreviousTapped: { },
+        onApplyToAllTapped: { }
     )
     .padding()
     .frame(width: 600)
@@ -151,10 +173,12 @@ struct AppDetailChangelogSectionView: View {
         locales: ["en-US"],
         selectedLocale: "en-US",
         canCopyFromPrevious: false,
+        canApplyToAllLanguages: false,
         onChangelogChanged: { _ in },
         onSaveTapped: { },
         onLanguagePickerTapped: { },
-        onCopyFromPreviousTapped: { }
+        onCopyFromPreviousTapped: { },
+        onApplyToAllTapped: { }
     )
     .padding()
     .frame(width: 600)
@@ -171,10 +195,12 @@ struct AppDetailChangelogSectionView: View {
         locales: [],
         selectedLocale: nil,
         canCopyFromPrevious: false,
+        canApplyToAllLanguages: false,
         onChangelogChanged: { _ in },
         onSaveTapped: { },
         onLanguagePickerTapped: { },
-        onCopyFromPreviousTapped: { }
+        onCopyFromPreviousTapped: { },
+        onApplyToAllTapped: { }
     )
     .padding()
     .frame(width: 600)
