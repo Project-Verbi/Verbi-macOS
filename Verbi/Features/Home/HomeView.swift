@@ -40,17 +40,26 @@ struct HomeView: View {
     }
     
     private var sidebar: some View {
-        List {
-            Section {
-                sidebarHeader
+        VStack(spacing: 0) {
+            List {
+                Section {
+                    sidebarHeader
+                }
             }
+            .listStyle(.sidebar)
+
+            Spacer()
+
+            settingsButton
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
         }
-        .listStyle(.sidebar)
         .navigationTitle("Apps")
+        .frame(minWidth: 220)
     }
 
     private var sidebarHeader: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 4) {
             Text("Welcome back")
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -59,12 +68,23 @@ struct HomeView: View {
                 .font(.title3)
                 .fontWeight(.semibold)
 
-            SettingsLink {
-                Label("Settings", systemImage: "gearshape")
-                    .font(.subheadline)
-            }
+            Text("Select an app to get started")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .padding(.top, 2)
         }
         .padding(.vertical, 8)
+    }
+
+    private var settingsButton: some View {
+        SettingsLink {
+            Label("Settings", systemImage: "gearshape.fill")
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(.primary)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
     }
 
     private var detailContent: some View {
