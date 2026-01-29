@@ -12,7 +12,6 @@ struct AppDetailChangelogSectionView: View {
     let canCopyFromPrevious: Bool
     let canApplyToAllLanguages: Bool
     let onChangelogChanged: (String) -> Void
-    let onSaveTapped: () -> Void
     let onLanguagePickerTapped: () -> Void
     let onCopyFromPreviousTapped: () -> Void
     let onApplyToAllTapped: () -> Void
@@ -71,20 +70,6 @@ struct AppDetailChangelogSectionView: View {
                     .foregroundStyle(.secondary)
             }
             Spacer()
-            if canEditChangelog {
-                Button {
-                    onSaveTapped()
-                } label: {
-                    if isSaving {
-                        ProgressView()
-                            .controlSize(.small)
-                    } else {
-                        Text("Save")
-                    }
-                }
-                .buttonStyle(.bordered)
-                .disabled(!canSaveChangelog)
-            }
             if !locales.isEmpty {
                 AppDetailLanguagePickerButton(
                     selectedLocale: selectedLocale,
@@ -146,7 +131,6 @@ struct AppDetailChangelogSectionView: View {
         canCopyFromPrevious: true,
         canApplyToAllLanguages: true,
         onChangelogChanged: { _ in },
-        onSaveTapped: { },
         onLanguagePickerTapped: { },
         onCopyFromPreviousTapped: { },
         onApplyToAllTapped: { }
@@ -175,7 +159,6 @@ struct AppDetailChangelogSectionView: View {
         canCopyFromPrevious: false,
         canApplyToAllLanguages: false,
         onChangelogChanged: { _ in },
-        onSaveTapped: { },
         onLanguagePickerTapped: { },
         onCopyFromPreviousTapped: { },
         onApplyToAllTapped: { }
@@ -197,7 +180,6 @@ struct AppDetailChangelogSectionView: View {
         canCopyFromPrevious: false,
         canApplyToAllLanguages: false,
         onChangelogChanged: { _ in },
-        onSaveTapped: { },
         onLanguagePickerTapped: { },
         onCopyFromPreviousTapped: { },
         onApplyToAllTapped: { }
