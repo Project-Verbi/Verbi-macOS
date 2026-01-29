@@ -36,6 +36,23 @@ struct AppDetailView: View {
         } message: {
             Text(viewModel.errorMessage ?? "")
         }
+        .alert("Apply to All Languages", isPresented: $viewModel.showApplyToAllConfirmation) {
+            Button("Cancel", role: .cancel) {
+                viewModel.localesToBeOverridden = []
+            }
+            Button("Apply", role: .destructive) {
+                viewModel.applyCurrentTextToAllLanguages()
+            }
+        } message: {
+            if viewModel.localesToBeOverridden.isEmpty {
+                Text("This will apply the current text to all other languages.")
+            } else {
+                let localeNames = viewModel.localesToBeOverridden
+                    .map { viewModel.displayName(for: $0) }
+                    .joined(separator: ", ")
+                Text("This will override existing text for: \(localeNames)")
+            }
+        }
     }
 
     private var sidebar: some View {
@@ -134,6 +151,7 @@ struct AppDetailView: View {
                             locales: viewModel.locales,
                             selectedLocale: viewModel.selectedLocale,
                             canCopyFromPrevious: viewModel.canCopyChangelogFromPreviousVersion,
+                            canApplyToAllLanguages: viewModel.canApplyToAllLanguages,
                             onChangelogChanged: { newValue in
                                 viewModel.updateSelectedChangelogText(newValue)
                             },
@@ -149,6 +167,10 @@ struct AppDetailView: View {
                                 Task {
                                     await viewModel.copyChangelogFromPreviousVersion()
                                 }
+                            },
+                            onApplyToAllTapped: {
+                                viewModel.localesToBeOverridden = viewModel.computeLocalesToBeOverridden()
+                                viewModel.showApplyToAllConfirmation = true
                             }
                         )
                         .popover(isPresented: $viewModel.showLanguagePicker, arrowEdge: .bottom) {

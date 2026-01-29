@@ -31,6 +31,8 @@ final class AppDetailViewModel {
     var showNewVersionSheet = false
     var newVersionString = ""
     var actionMessage: String?
+    var showApplyToAllConfirmation = false
+    var localesToBeOverridden: [String] = []
 
     private var draftsByVersion: [String: VersionDraft] = [:]
 
@@ -95,6 +97,30 @@ final class AppDetailViewModel {
     var canCopyChangelogFromPreviousVersion: Bool {
         guard previousVersion != nil else { return false }
         return !locales.isEmpty && canEditChangelog
+    }
+
+    /// Checks if current text can be applied to all other locales.
+    var canApplyToAllLanguages: Bool {
+        guard let currentLocale = selectedLocale,
+              !currentLocale.isEmpty,
+              canEditChangelog,
+              locales.count > 1 else { return false }
+        let currentText = changelogByLocale[currentLocale] ?? ""
+        return !currentText.isEmpty
+    }
+
+    /// Returns the locales that would be overridden when applying current text to all.
+    func computeLocalesToBeOverridden() -> [String] {
+        guard let currentLocale = selectedLocale,
+              canEditChangelog else { return [] }
+        let currentText = changelogByLocale[currentLocale] ?? ""
+        guard !currentText.isEmpty else { return [] }
+
+        return locales.filter { locale in
+            guard locale != currentLocale else { return false }
+            let existingText = changelogByLocale[locale] ?? ""
+            return !existingText.isEmpty
+        }
     }
 
     func setSelectedVersionID(_ newValue: String?) {
@@ -255,6 +281,27 @@ final class AppDetailViewModel {
         }
 
         isLoadingChangelogs = false
+    }
+
+    /// Applies the current changelog text to all other locales.
+    func applyCurrentTextToAllLanguages() {
+        guard let currentLocale = selectedLocale,
+              canEditChangelog else { return }
+        let currentText = changelogByLocale[currentLocale] ?? ""
+        guard !currentText.isEmpty else { return }
+
+        var appliedCount = 0
+        for locale in locales {
+            guard locale != currentLocale else { continue }
+            changelogByLocale[locale] = currentText
+            dirtyLocales.insert(locale)
+            appliedCount += 1
+        }
+
+        if appliedCount > 0 {
+            actionMessage = "Applied text to \(appliedCount) other locale(s)."
+        }
+        localesToBeOverridden = []
     }
 
     func createNewVersion() async {

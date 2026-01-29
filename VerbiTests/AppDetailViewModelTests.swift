@@ -1319,4 +1319,418 @@ struct AppDetailViewModelTests {
         #expect(fetchCalled.withLock { $0 } == false)
         #expect(sut.isLoadingChangelogs == false)
     }
+
+    // MARK: - canApplyToAllLanguages Tests
+
+    @Test
+    func canApplyToAllLanguages_returnsTrueWhenConditionsMet() {
+        // GIVEN a view model with multiple locales, editable version, and non-empty text
+        let sut = AppDetailViewModel(app: .stub)
+        sut.versions = [
+            AppStoreVersionSummary(
+                id: "version-1",
+                version: "2.0.0",
+                state: "PREPARE_FOR_SUBMISSION",
+                platform: "IOS",
+                kind: .current,
+                isEditable: true
+            )
+        ]
+        sut.selectedVersionID = "version-1"
+        sut.selectedLocale = "en-US"
+        sut.locales = ["en-US", "de-DE", "fr-FR"]
+        sut.changelogByLocale = ["en-US": "Some changelog text"]
+
+        // WHEN checking if can apply to all languages
+        let canApply = sut.canApplyToAllLanguages
+
+        // THEN it returns true
+        #expect(canApply == true)
+    }
+
+    @Test
+    func canApplyToAllLanguages_returnsFalseWhenOnlyOneLocale() {
+        // GIVEN a view model with only one locale
+        let sut = AppDetailViewModel(app: .stub)
+        sut.versions = [
+            AppStoreVersionSummary(
+                id: "version-1",
+                version: "2.0.0",
+                state: "PREPARE_FOR_SUBMISSION",
+                platform: "IOS",
+                kind: .current,
+                isEditable: true
+            )
+        ]
+        sut.selectedVersionID = "version-1"
+        sut.selectedLocale = "en-US"
+        sut.locales = ["en-US"]
+        sut.changelogByLocale = ["en-US": "Some changelog text"]
+
+        // WHEN checking if can apply to all languages
+        let canApply = sut.canApplyToAllLanguages
+
+        // THEN it returns false because there's only one locale
+        #expect(canApply == false)
+    }
+
+    @Test
+    func canApplyToAllLanguages_returnsFalseWhenEmptyText() {
+        // GIVEN a view model with empty changelog text
+        let sut = AppDetailViewModel(app: .stub)
+        sut.versions = [
+            AppStoreVersionSummary(
+                id: "version-1",
+                version: "2.0.0",
+                state: "PREPARE_FOR_SUBMISSION",
+                platform: "IOS",
+                kind: .current,
+                isEditable: true
+            )
+        ]
+        sut.selectedVersionID = "version-1"
+        sut.selectedLocale = "en-US"
+        sut.locales = ["en-US", "de-DE"]
+        sut.changelogByLocale = ["en-US": ""]
+
+        // WHEN checking if can apply to all languages
+        let canApply = sut.canApplyToAllLanguages
+
+        // THEN it returns false because the text is empty
+        #expect(canApply == false)
+    }
+
+    @Test
+    func canApplyToAllLanguages_returnsFalseWhenNotEditable() {
+        // GIVEN a view model with non-editable version
+        let sut = AppDetailViewModel(app: .stub)
+        sut.versions = [
+            AppStoreVersionSummary(
+                id: "version-1",
+                version: "2.0.0",
+                state: "READY_FOR_SALE",
+                platform: "IOS",
+                kind: .current,
+                isEditable: false
+            )
+        ]
+        sut.selectedVersionID = "version-1"
+        sut.selectedLocale = "en-US"
+        sut.locales = ["en-US", "de-DE"]
+        sut.changelogByLocale = ["en-US": "Some changelog text"]
+
+        // WHEN checking if can apply to all languages
+        let canApply = sut.canApplyToAllLanguages
+
+        // THEN it returns false because the version is not editable
+        #expect(canApply == false)
+    }
+
+    @Test
+    func canApplyToAllLanguages_returnsFalseWhenNoLocaleSelected() {
+        // GIVEN a view model with no selected locale
+        let sut = AppDetailViewModel(app: .stub)
+        sut.versions = [
+            AppStoreVersionSummary(
+                id: "version-1",
+                version: "2.0.0",
+                state: "PREPARE_FOR_SUBMISSION",
+                platform: "IOS",
+                kind: .current,
+                isEditable: true
+            )
+        ]
+        sut.selectedVersionID = "version-1"
+        sut.selectedLocale = nil
+        sut.locales = ["en-US", "de-DE"]
+
+        // WHEN checking if can apply to all languages
+        let canApply = sut.canApplyToAllLanguages
+
+        // THEN it returns false because no locale is selected
+        #expect(canApply == false)
+    }
+
+    // MARK: - computeLocalesToBeOverridden Tests
+
+    @Test
+    func computeLocalesToBeOverridden_returnsLocalesWithExistingText() {
+        // GIVEN a view model where some locales have existing text
+        let sut = AppDetailViewModel(app: .stub)
+        sut.versions = [
+            AppStoreVersionSummary(
+                id: "version-1",
+                version: "2.0.0",
+                state: "PREPARE_FOR_SUBMISSION",
+                platform: "IOS",
+                kind: .current,
+                isEditable: true
+            )
+        ]
+        sut.selectedVersionID = "version-1"
+        sut.selectedLocale = "en-US"
+        sut.locales = ["en-US", "de-DE", "fr-FR"]
+        sut.changelogByLocale = [
+            "en-US": "English text",
+            "de-DE": "German text",
+            "fr-FR": ""
+        ]
+
+        // WHEN computing locales to be overridden
+        let localesToOverride = sut.computeLocalesToBeOverridden()
+
+        // THEN it returns only the locales with non-empty text (excluding current)
+        #expect(localesToOverride.count == 1)
+        #expect(localesToOverride.contains("de-DE"))
+        #expect(!localesToOverride.contains("en-US")) // Current locale excluded
+        #expect(!localesToOverride.contains("fr-FR")) // Empty text excluded
+    }
+
+    @Test
+    func computeLocalesToBeOverridden_returnsEmptyWhenNoOtherLocalesHaveText() {
+        // GIVEN a view model where no other locales have text
+        let sut = AppDetailViewModel(app: .stub)
+        sut.versions = [
+            AppStoreVersionSummary(
+                id: "version-1",
+                version: "2.0.0",
+                state: "PREPARE_FOR_SUBMISSION",
+                platform: "IOS",
+                kind: .current,
+                isEditable: true
+            )
+        ]
+        sut.selectedVersionID = "version-1"
+        sut.selectedLocale = "en-US"
+        sut.locales = ["en-US", "de-DE", "fr-FR"]
+        sut.changelogByLocale = [
+            "en-US": "English text",
+            "de-DE": "",
+            "fr-FR": ""
+        ]
+
+        // WHEN computing locales to be overridden
+        let localesToOverride = sut.computeLocalesToBeOverridden()
+
+        // THEN it returns an empty array
+        #expect(localesToOverride.isEmpty)
+    }
+
+    @Test
+    func computeLocalesToBeOverridden_returnsEmptyWhenNotEditable() {
+        // GIVEN a view model with non-editable version
+        let sut = AppDetailViewModel(app: .stub)
+        sut.versions = [
+            AppStoreVersionSummary(
+                id: "version-1",
+                version: "2.0.0",
+                state: "READY_FOR_SALE",
+                platform: "IOS",
+                kind: .current,
+                isEditable: false
+            )
+        ]
+        sut.selectedVersionID = "version-1"
+        sut.selectedLocale = "en-US"
+        sut.locales = ["en-US", "de-DE"]
+        sut.changelogByLocale = [
+            "en-US": "English text",
+            "de-DE": "German text"
+        ]
+
+        // WHEN computing locales to be overridden
+        let localesToOverride = sut.computeLocalesToBeOverridden()
+
+        // THEN it returns an empty array because editing is not allowed
+        #expect(localesToOverride.isEmpty)
+    }
+
+    @Test
+    func computeLocalesToBeOverridden_returnsEmptyWhenCurrentTextEmpty() {
+        // GIVEN a view model with empty current text
+        let sut = AppDetailViewModel(app: .stub)
+        sut.versions = [
+            AppStoreVersionSummary(
+                id: "version-1",
+                version: "2.0.0",
+                state: "PREPARE_FOR_SUBMISSION",
+                platform: "IOS",
+                kind: .current,
+                isEditable: true
+            )
+        ]
+        sut.selectedVersionID = "version-1"
+        sut.selectedLocale = "en-US"
+        sut.locales = ["en-US", "de-DE"]
+        sut.changelogByLocale = [
+            "en-US": "",
+            "de-DE": "German text"
+        ]
+
+        // WHEN computing locales to be overridden
+        let localesToOverride = sut.computeLocalesToBeOverridden()
+
+        // THEN it returns an empty array because current text is empty
+        #expect(localesToOverride.isEmpty)
+    }
+
+    // MARK: - applyCurrentTextToAllLanguages Tests
+
+    @Test
+    func applyCurrentTextToAllLanguages_appliesTextToAllOtherLocales() {
+        // GIVEN a view model with text in current locale
+        let sut = AppDetailViewModel(app: .stub)
+        sut.versions = [
+            AppStoreVersionSummary(
+                id: "version-1",
+                version: "2.0.0",
+                state: "PREPARE_FOR_SUBMISSION",
+                platform: "IOS",
+                kind: .current,
+                isEditable: true
+            )
+        ]
+        sut.selectedVersionID = "version-1"
+        sut.selectedLocale = "en-US"
+        sut.locales = ["en-US", "de-DE", "fr-FR"]
+        sut.changelogByLocale = [
+            "en-US": "New features",
+            "de-DE": "",
+            "fr-FR": ""
+        ]
+        sut.dirtyLocales = []
+
+        // WHEN applying current text to all languages
+        sut.applyCurrentTextToAllLanguages()
+
+        // THEN the text is applied to all other locales and marked as dirty
+        #expect(sut.changelogByLocale["en-US"] == "New features")
+        #expect(sut.changelogByLocale["de-DE"] == "New features")
+        #expect(sut.changelogByLocale["fr-FR"] == "New features")
+        #expect(sut.dirtyLocales.contains("de-DE"))
+        #expect(sut.dirtyLocales.contains("fr-FR"))
+        #expect(!sut.dirtyLocales.contains("en-US")) // Current locale not marked dirty
+        #expect(sut.actionMessage == "Applied text to 2 other locale(s).")
+    }
+
+    @Test
+    func applyCurrentTextToAllLanguages_overridesExistingText() {
+        // GIVEN a view model with existing text in other locales
+        let sut = AppDetailViewModel(app: .stub)
+        sut.versions = [
+            AppStoreVersionSummary(
+                id: "version-1",
+                version: "2.0.0",
+                state: "PREPARE_FOR_SUBMISSION",
+                platform: "IOS",
+                kind: .current,
+                isEditable: true
+            )
+        ]
+        sut.selectedVersionID = "version-1"
+        sut.selectedLocale = "en-US"
+        sut.locales = ["en-US", "de-DE", "fr-FR"]
+        sut.changelogByLocale = [
+            "en-US": "New features",
+            "de-DE": "Alte Features",
+            "fr-FR": "Anciennes fonctionnalités"
+        ]
+        sut.dirtyLocales = ["de-DE"]
+
+        // WHEN applying current text to all languages
+        sut.applyCurrentTextToAllLanguages()
+
+        // THEN the existing text is overridden
+        #expect(sut.changelogByLocale["de-DE"] == "New features")
+        #expect(sut.changelogByLocale["fr-FR"] == "New features")
+        #expect(sut.dirtyLocales.contains("de-DE"))
+        #expect(sut.dirtyLocales.contains("fr-FR"))
+    }
+
+    @Test
+    func applyCurrentTextToAllLanguages_doesNothingWhenNotEditable() {
+        // GIVEN a view model with non-editable version
+        let sut = AppDetailViewModel(app: .stub)
+        sut.versions = [
+            AppStoreVersionSummary(
+                id: "version-1",
+                version: "2.0.0",
+                state: "READY_FOR_SALE",
+                platform: "IOS",
+                kind: .current,
+                isEditable: false
+            )
+        ]
+        sut.selectedVersionID = "version-1"
+        sut.selectedLocale = "en-US"
+        sut.locales = ["en-US", "de-DE"]
+        sut.changelogByLocale = [
+            "en-US": "New features",
+            "de-DE": ""
+        ]
+
+        // WHEN applying current text to all languages
+        sut.applyCurrentTextToAllLanguages()
+
+        // THEN nothing changes
+        #expect(sut.changelogByLocale["de-DE"] == "")
+        #expect(sut.actionMessage == nil)
+    }
+
+    @Test
+    func applyCurrentTextToAllLanguages_doesNothingWhenCurrentTextEmpty() {
+        // GIVEN a view model with empty current text
+        let sut = AppDetailViewModel(app: .stub)
+        sut.versions = [
+            AppStoreVersionSummary(
+                id: "version-1",
+                version: "2.0.0",
+                state: "PREPARE_FOR_SUBMISSION",
+                platform: "IOS",
+                kind: .current,
+                isEditable: true
+            )
+        ]
+        sut.selectedVersionID = "version-1"
+        sut.selectedLocale = "en-US"
+        sut.locales = ["en-US", "de-DE"]
+        sut.changelogByLocale = [
+            "en-US": "",
+            "de-DE": "German text"
+        ]
+
+        // WHEN applying current text to all languages
+        sut.applyCurrentTextToAllLanguages()
+
+        // THEN nothing changes
+        #expect(sut.changelogByLocale["de-DE"] == "German text")
+        #expect(sut.actionMessage == nil)
+    }
+
+    @Test
+    func applyCurrentTextToAllLanguages_clearsLocalesToBeOverridden() {
+        // GIVEN a view model with locales to be overridden set
+        let sut = AppDetailViewModel(app: .stub)
+        sut.versions = [
+            AppStoreVersionSummary(
+                id: "version-1",
+                version: "2.0.0",
+                state: "PREPARE_FOR_SUBMISSION",
+                platform: "IOS",
+                kind: .current,
+                isEditable: true
+            )
+        ]
+        sut.selectedVersionID = "version-1"
+        sut.selectedLocale = "en-US"
+        sut.locales = ["en-US", "de-DE"]
+        sut.changelogByLocale = ["en-US": "New features"]
+        sut.localesToBeOverridden = ["de-DE"]
+
+        // WHEN applying current text to all languages
+        sut.applyCurrentTextToAllLanguages()
+
+        // THEN the localesToBeOverridden is cleared
+        #expect(sut.localesToBeOverridden.isEmpty)
+    }
 }
