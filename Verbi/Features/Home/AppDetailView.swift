@@ -168,8 +168,8 @@ struct AppDetailView: View {
                                 viewModel.showApplyToAllConfirmation = true
                             }
                         )
-                        .popover(isPresented: $viewModel.showLanguagePicker, arrowEdge: .bottom) {
-                            AppDetailLanguagePickerPopover(
+                        .sheet(isPresented: $viewModel.showLanguagePicker) {
+                            AppDetailLanguagePickerSheet(
                                 locales: viewModel.locales,
                                 selectedLocale: viewModel.selectedLocale,
                                 displayName: { locale in
