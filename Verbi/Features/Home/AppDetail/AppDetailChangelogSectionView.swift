@@ -11,7 +11,6 @@ struct AppDetailChangelogSectionView: View {
     let selectedLocale: String?
     let canCopyFromPrevious: Bool
     let onChangelogChanged: (String) -> Void
-    let onSaveTapped: () -> Void
     let onLanguagePickerTapped: () -> Void
     let onCopyFromPreviousTapped: () -> Void
 
@@ -62,20 +61,6 @@ struct AppDetailChangelogSectionView: View {
                     .foregroundStyle(.secondary)
             }
             Spacer()
-            if canEditChangelog {
-                Button {
-                    onSaveTapped()
-                } label: {
-                    if isSaving {
-                        ProgressView()
-                            .controlSize(.small)
-                    } else {
-                        Text("Save")
-                    }
-                }
-                .buttonStyle(.bordered)
-                .disabled(!canSaveChangelog)
-            }
             if !locales.isEmpty {
                 AppDetailLanguagePickerButton(
                     selectedLocale: selectedLocale,
@@ -125,7 +110,6 @@ struct AppDetailChangelogSectionView: View {
         selectedLocale: "en-US",
         canCopyFromPrevious: true,
         onChangelogChanged: { _ in },
-        onSaveTapped: { },
         onLanguagePickerTapped: { },
         onCopyFromPreviousTapped: { }
     )
@@ -152,7 +136,6 @@ struct AppDetailChangelogSectionView: View {
         selectedLocale: "en-US",
         canCopyFromPrevious: false,
         onChangelogChanged: { _ in },
-        onSaveTapped: { },
         onLanguagePickerTapped: { },
         onCopyFromPreviousTapped: { }
     )
@@ -172,7 +155,6 @@ struct AppDetailChangelogSectionView: View {
         selectedLocale: nil,
         canCopyFromPrevious: false,
         onChangelogChanged: { _ in },
-        onSaveTapped: { },
         onLanguagePickerTapped: { },
         onCopyFromPreviousTapped: { }
     )

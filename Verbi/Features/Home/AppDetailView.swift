@@ -137,11 +137,6 @@ struct AppDetailView: View {
                             onChangelogChanged: { newValue in
                                 viewModel.updateSelectedChangelogText(newValue)
                             },
-                            onSaveTapped: {
-                                Task {
-                                    await viewModel.saveCurrentChangelog()
-                                }
-                            },
                             onLanguagePickerTapped: {
                                 viewModel.showLanguagePicker = true
                             },
@@ -171,6 +166,30 @@ struct AppDetailView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if viewModel.canEditChangelog {
+                HStack {
+                    Spacer()
+                    Button {
+                        Task {
+                            await viewModel.saveCurrentChangelog()
+                        }
+                    } label: {
+                        if viewModel.isSaving {
+                            ProgressView()
+                                .controlSize(.small)
+                        } else {
+                            Text("Save")
+                        }
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(!viewModel.canSaveChangelog)
+                    .padding(.trailing, 28)
+                }
+                .padding(.vertical, 16)
+                .background(Color(nsColor: .windowBackgroundColor))
+            }
+        }
     }
 
     private var versionSelectionBinding: Binding<String?> {
