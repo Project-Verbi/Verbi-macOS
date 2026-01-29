@@ -94,8 +94,6 @@ struct HomeView: View {
                     .frame(maxWidth: .infinity)
             } else if let errorMessage = errorMessage {
                 errorView(errorMessage, showResetAction: showResetAction)
-            } else if apps.isEmpty {
-                featuresGrid
             } else {
                 appsList
             }
@@ -148,38 +146,6 @@ struct HomeView: View {
         .listStyle(.inset)
         .frame(maxWidth: 800)
         .scrollContentBackground(.hidden)
-    }
-    
-    private var featuresGrid: some View {
-        LazyVGrid(columns: [
-            GridItem(.flexible()),
-            GridItem(.flexible())
-        ], spacing: 20) {
-            FeatureCard(
-                icon: "chart.bar.fill",
-                title: "Analytics",
-                description: "View your app analytics"
-            )
-            
-            FeatureCard(
-                icon: "star.fill",
-                title: "Reviews",
-                description: "Manage user reviews"
-            )
-            
-            FeatureCard(
-                icon: "square.stack.3d.up.fill",
-                title: "Builds",
-                description: "Track your builds"
-            )
-            
-            FeatureCard(
-                icon: "doc.text.fill",
-                title: "Submissions",
-                description: "Manage submissions"
-            )
-        }
-        .frame(maxWidth: 700)
     }
     
     private func errorView(_ message: String, showResetAction: Bool) -> some View {
@@ -420,37 +386,6 @@ private struct PlaceholderIcon: View {
                 .foregroundStyle(.white.opacity(0.9))
         }
         .padding(6)
-    }
-}
-
-struct FeatureCard: View {
-    let icon: String
-    let title: String
-    let description: String
-    
-    var body: some View {
-        VStack(spacing: 12) {
-            Image(systemName: icon)
-                .font(.system(size: 32))
-                .foregroundStyle(.blue.gradient)
-            
-            Text(title)
-                .font(.headline)
-                .foregroundStyle(.primary)
-            
-            Text(description)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(24)
-        .background(Color(nsColor: .controlBackgroundColor))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(Color(nsColor: .separatorColor), lineWidth: 1)
-        )
     }
 }
 
