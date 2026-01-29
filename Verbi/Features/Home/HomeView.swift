@@ -15,7 +15,6 @@ struct HomeView: View {
     @State private var isLoading = false
     @State private var errorMessage: String?
     @State private var showResetAction = false
-    @State private var selectedFilter: AppFilter? = .all
 
     private var releasedApps: [AppStoreApp] {
         apps.filter { $0.hasReleased }
@@ -41,28 +40,9 @@ struct HomeView: View {
     }
     
     private var sidebar: some View {
-        List(selection: $selectedFilter) {
+        List {
             Section {
                 sidebarHeader
-            }
-
-            Section("Filters") {
-                ForEach(AppFilter.allCases) { filter in
-                    HStack(spacing: 10) {
-                        Text(filter.title)
-                        Spacer()
-                        Text("\(filter.count(in: apps))")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(
-                                Capsule()
-                                    .fill(Color(nsColor: .controlBackgroundColor))
-                            )
-                    }
-                    .tag(Optional(filter))
-                }
             }
         }
         .listStyle(.sidebar)
@@ -116,9 +96,9 @@ struct HomeView: View {
     
     private var appsList: some View {
         List {
-            if !displayedReleasedApps.isEmpty {
+            if !releasedApps.isEmpty {
                 Section("Released Apps") {
-                    ForEach(displayedReleasedApps) { app in
+                    ForEach(releasedApps) { app in
                         Button {
                             openWindow(value: app)
                         } label: {
@@ -130,9 +110,9 @@ struct HomeView: View {
                     }
                 }
             }
-            if !displayedUnreleasedApps.isEmpty {
+            if !unreleasedApps.isEmpty {
                 Section("Not Yet Released") {
-                    ForEach(displayedUnreleasedApps) { app in
+                    ForEach(unreleasedApps) { app in
                         Button {
                             openWindow(value: app)
                         } label: {
@@ -259,58 +239,6 @@ struct HomeView: View {
             return "Request failed (\(statusCode)): \(responseError.title).\(detail)"
         }
         return "Request failed (\(statusCode))."
-    }
-
-    private var currentFilter: AppFilter {
-        selectedFilter ?? .all
-    }
-
-    private var displayedReleasedApps: [AppStoreApp] {
-        switch currentFilter {
-        case .all, .released:
-            return releasedApps
-        case .unreleased:
-            return []
-        }
-    }
-
-    private var displayedUnreleasedApps: [AppStoreApp] {
-        switch currentFilter {
-        case .all, .unreleased:
-            return unreleasedApps
-        case .released:
-            return []
-        }
-    }
-
-    private enum AppFilter: String, CaseIterable, Identifiable {
-        case all
-        case released
-        case unreleased
-
-        var id: String { rawValue }
-
-        var title: String {
-            switch self {
-            case .all:
-                return "All Apps"
-            case .released:
-                return "Released"
-            case .unreleased:
-                return "Not Yet Released"
-            }
-        }
-
-        func count(in apps: [AppStoreApp]) -> Int {
-            switch self {
-            case .all:
-                return apps.count
-            case .released:
-                return apps.filter { $0.hasReleased }.count
-            case .unreleased:
-                return apps.filter { !$0.hasReleased }.count
-            }
-        }
     }
 
 }
