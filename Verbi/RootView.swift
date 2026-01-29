@@ -3,15 +3,12 @@ import Dependencies
 
 struct RootView: View {
     @State private var showOnboarding = false
-    @State private var isCheckingKeychain = true
     @State private var errorMessage: String?
     @Dependency(\.appStoreConnectKey) var appStoreConnectKey
     
     var body: some View {
         Group {
-            if isCheckingKeychain {
-                ProgressView("Loading...")
-            } else if let errorMessage = errorMessage {
+            if let errorMessage = errorMessage {
                 errorView(errorMessage)
             } else if showOnboarding {
                 OnboardingView()
@@ -57,7 +54,6 @@ struct RootView: View {
     }
     
     private func checkOnboardingState() async {
-        isCheckingKeychain = true
         errorMessage = nil
         
         do {
@@ -66,8 +62,6 @@ struct RootView: View {
         } catch {
             errorMessage = "Failed to access keychain: \(error.localizedDescription)"
         }
-        
-        isCheckingKeychain = false
     }
 
     private func resetAPIKey() {
