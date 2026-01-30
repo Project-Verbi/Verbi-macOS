@@ -11,6 +11,7 @@ struct AppStoreConnectAPIClient {
     var fetchChangelogs: @Sendable @MainActor (_ versionID: String) async throws -> [AppChangelog]
     var updateChangelog: @Sendable @MainActor (_ localizationID: String, _ text: String) async throws -> Void
     var createAppVersion: @Sendable @MainActor (_ appID: String, _ versionString: String, _ platformRaw: String?) async throws -> AppStoreVersionSummary
+    var releaseVersion: @Sendable @MainActor (_ versionID: String) async throws -> Void
 }
 
 extension AppStoreConnectAPIClient: DependencyKey {
@@ -197,6 +198,36 @@ extension AppStoreConnectAPIClient: DependencyKey {
                 throw AppStoreConnectError.unexpectedResponse
             }
             return summary
+        },
+        releaseVersion: { versionID in
+            @Dependency(\.appStoreConnectKey) var keyClient
+
+            guard let apiKey = try keyClient.loadAPIKey() else {
+                throw AppStoreConnectError.noAPIKey
+            }
+
+            let configuration = try makeConfiguration(
+                issuerID: apiKey.issuerID,
+                keyID: apiKey.keyID,
+                privateKey: apiKey.privateKey
+            )
+
+            let provider = APIProvider(configuration: configuration)
+            let requestBody = AppStoreVersionReleaseRequestCreateRequest(
+                data: .init(
+                    type: .appStoreVersionReleaseRequests,
+                    relationships: .init(
+                        appStoreVersion: .init(
+                            data: .init(
+                                type: .appStoreVersions,
+                                id: versionID
+                            )
+                        )
+                    )
+                )
+            )
+            let request = APIEndpoint.v1.appStoreVersionReleaseRequests.post(requestBody)
+            _ = try await provider.request(request)
         }
     )
 }

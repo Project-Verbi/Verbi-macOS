@@ -3,6 +3,13 @@ import Dependencies
 import Observation
 import AppStoreConnect_Swift_SDK
 
+enum ReleaseState: Equatable {
+    case idle
+    case inProgress
+    case success(versionNumber: String?)
+    case error(message: String?)
+}
+
 @MainActor
 @Observable
 final class AppDetailViewModel {
@@ -33,6 +40,8 @@ final class AppDetailViewModel {
     var actionMessage: String?
     var showApplyToAllConfirmation = false
     var localesToBeOverridden: [String] = []
+    var showReleaseConfirmation = false
+    var releaseState: ReleaseState = .idle
 
     private var draftsByVersion: [String: VersionDraft] = [:]
 
@@ -42,6 +51,10 @@ final class AppDetailViewModel {
 
     var selectedVersion: AppStoreVersionSummary? {
         versions.first { $0.id == selectedVersionID }
+    }
+
+    var isReleasing: Bool {
+        releaseState == .inProgress
     }
 
     var canEditChangelog: Bool {
@@ -61,6 +74,18 @@ final class AppDetailViewModel {
     var canCreateVersion: Bool {
         let normalizedState = selectedVersion?.state?.uppercased()
         return normalizedState != "PENDING_DEVELOPER_RELEASE"
+    }
+
+    var canReleaseVersion: Bool {
+        guard let state = selectedVersion?.state?.uppercased() else { return false }
+        return state == "PENDING_DEVELOPER_RELEASE" && !isReleasing
+    }
+
+    var releaseButtonTitle: String {
+        if canReleaseVersion {
+            return "Release to App Store"
+        }
+        return ""
     }
 
     var canSaveChangelog: Bool {
@@ -325,6 +350,22 @@ final class AppDetailViewModel {
         }
 
         isSaving = false
+    }
+
+    func releaseVersion() async {
+        guard let versionID = selectedVersionID, canReleaseVersion else { return }
+
+        releaseState = .inProgress
+        errorMessage = nil
+        actionMessage = nil
+
+        do {
+            try await apiClient.releaseVersion(versionID)
+            releaseState = .success(versionNumber: selectedVersion?.version)
+            await loadVersions()
+        } catch {
+            releaseState = .error(message: error.localizedDescription)
+        }
     }
 
     func displayName(for locale: String) -> String {
