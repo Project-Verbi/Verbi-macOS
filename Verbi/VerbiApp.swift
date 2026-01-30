@@ -19,5 +19,9 @@ struct VerbiApp: App {
             }
         }
         .defaultSize(width: 860, height: 640)
+
+        Settings {
+            SettingsView()
+        }
     }
 }
