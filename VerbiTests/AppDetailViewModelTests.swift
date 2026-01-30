@@ -1068,7 +1068,7 @@ struct AppDetailViewModelTests {
         #expect(sut.dirtyLocales.contains("de-DE"))
         #expect(!sut.dirtyLocales.contains("fr-FR")) // Not marked dirty since not copied
         #expect(sut.actionMessage == "Copied changelogs from version 1.9.0 for 2 locale(s).")
-        #expect(sut.isLoadingChangelogs == false)
+        #expect(sut.isCopyingFromPrevious == false)
         #expect(sut.errorMessage == nil)
     }
 
@@ -1205,7 +1205,7 @@ struct AppDetailViewModelTests {
 
         // THEN an error is shown because no locales were copied
         #expect(sut.errorMessage?.contains("No changelogs found") == true)
-        #expect(sut.isLoadingChangelogs == false)
+        #expect(sut.isCopyingFromPrevious == false)
     }
 
     @Test
@@ -1244,7 +1244,7 @@ struct AppDetailViewModelTests {
 
         // THEN an error message is shown
         #expect(sut.errorMessage?.contains("No changelogs found") == true)
-        #expect(sut.isLoadingChangelogs == false)
+        #expect(sut.isCopyingFromPrevious == false)
     }
 
     @Test
@@ -1284,7 +1284,7 @@ struct AppDetailViewModelTests {
 
         // THEN an error message is set
         #expect(sut.errorMessage?.contains("Failed to copy changelog") == true)
-        #expect(sut.isLoadingChangelogs == false)
+        #expect(sut.isCopyingFromPrevious == false)
     }
 
     @Test
@@ -1317,7 +1317,7 @@ struct AppDetailViewModelTests {
 
         // THEN the fetch is not called and nothing changes
         #expect(fetchCalled.withLock { $0 } == false)
-        #expect(sut.isLoadingChangelogs == false)
+        #expect(sut.isCopyingFromPrevious == false)
     }
 
     // MARK: - canApplyToAllLanguages Tests
