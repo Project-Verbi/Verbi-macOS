@@ -42,6 +42,7 @@ final class AppDetailViewModel {
     var localesToBeOverridden: [String] = []
     var showReleaseConfirmation = false
     var releaseState: ReleaseState = .idle
+    var isCopyingFromPrevious = false
 
     private var draftsByVersion: [String: VersionDraft] = [:]
 
@@ -93,7 +94,8 @@ final class AppDetailViewModel {
               dirtyLocales.contains(locale),
               let localizationID = changelogIDByLocale[locale],
               !localizationID.isEmpty,
-              canEditChangelog
+              canEditChangelog,
+              !isCopyingFromPrevious
         else { return false }
         return !isSaving
     }
@@ -275,7 +277,7 @@ final class AppDetailViewModel {
         guard let previousVersion = previousVersion,
               canEditChangelog else { return }
 
-        isLoadingChangelogs = true
+        isCopyingFromPrevious = true
         errorMessage = nil
         actionMessage = nil
 
@@ -305,7 +307,7 @@ final class AppDetailViewModel {
             errorMessage = "Failed to copy changelog: \(error.localizedDescription)"
         }
 
-        isLoadingChangelogs = false
+        isCopyingFromPrevious = false
     }
 
     /// Applies the current changelog text to all other locales.

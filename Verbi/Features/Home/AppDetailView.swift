@@ -174,6 +174,7 @@ struct AppDetailView: View {
                             selectedLocale: viewModel.selectedLocale,
                             canCopyFromPrevious: viewModel.canCopyChangelogFromPreviousVersion,
                             canApplyToAllLanguages: viewModel.canApplyToAllLanguages,
+                            isCopyingFromPrevious: viewModel.isCopyingFromPrevious,
                             onChangelogChanged: { newValue in
                                 viewModel.updateSelectedChangelogText(newValue)
                             },

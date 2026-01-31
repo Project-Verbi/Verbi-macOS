@@ -11,6 +11,7 @@ struct AppDetailChangelogSectionView: View {
     let selectedLocale: String?
     let canCopyFromPrevious: Bool
     let canApplyToAllLanguages: Bool
+    let isCopyingFromPrevious: Bool
     let onChangelogChanged: (String) -> Void
     let onLanguagePickerTapped: () -> Void
     let onCopyFromPreviousTapped: () -> Void
@@ -36,7 +37,16 @@ struct AppDetailChangelogSectionView: View {
                     .background(Color.black.opacity(0.1))
                     .scrollContentBackground(.hidden)
                     .clipShape(RoundedRectangle(cornerRadius: 10))
-                    .disabled(!canEditChangelog)
+                    .disabled(!canEditChangelog || isCopyingFromPrevious)
+                    .overlay {
+                        if isCopyingFromPrevious {
+                            ZStack {
+                                Color(nsColor: .windowBackgroundColor).opacity(0.8)
+                                ProgressView("Copying from previous version...")
+                                    .controlSize(.small)
+                            }
+                        }
+                    }
 
                 if canCopyFromPrevious || canApplyToAllLanguages {
                     HStack(spacing: 8) {
@@ -92,10 +102,17 @@ struct AppDetailChangelogSectionView: View {
         Button {
             onCopyFromPreviousTapped()
         } label: {
-            Image(systemName: "doc.on.doc")
-                .padding(4)
+            if isCopyingFromPrevious {
+                ProgressView()
+                    .controlSize(.small)
+                    .padding(4)
+            } else {
+                Image(systemName: "doc.on.doc")
+                    .padding(4)
+            }
         }
         .buttonStyle(.plain)
+        .disabled(isCopyingFromPrevious)
         .help("Copy the changelog from the previous version")
     }
 
@@ -107,6 +124,7 @@ struct AppDetailChangelogSectionView: View {
                 .padding(4)
         }
         .buttonStyle(.plain)
+        .disabled(isCopyingFromPrevious)
         .help("Apply current text to all other languages")
     }
 }
@@ -130,6 +148,7 @@ struct AppDetailChangelogSectionView: View {
         selectedLocale: "en-US",
         canCopyFromPrevious: true,
         canApplyToAllLanguages: true,
+        isCopyingFromPrevious: false,
         onChangelogChanged: { _ in },
         onLanguagePickerTapped: { },
         onCopyFromPreviousTapped: { },
@@ -158,6 +177,7 @@ struct AppDetailChangelogSectionView: View {
         selectedLocale: "en-US",
         canCopyFromPrevious: false,
         canApplyToAllLanguages: false,
+        isCopyingFromPrevious: false,
         onChangelogChanged: { _ in },
         onLanguagePickerTapped: { },
         onCopyFromPreviousTapped: { },
@@ -179,6 +199,7 @@ struct AppDetailChangelogSectionView: View {
         selectedLocale: nil,
         canCopyFromPrevious: false,
         canApplyToAllLanguages: false,
+        isCopyingFromPrevious: false,
         onChangelogChanged: { _ in },
         onLanguagePickerTapped: { },
         onCopyFromPreviousTapped: { },
