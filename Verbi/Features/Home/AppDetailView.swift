@@ -47,6 +47,9 @@ struct AppDetailView: View {
         .task(id: viewModel.selectedVersionID) {
             await viewModel.loadChangelogs()
         }
+        .task(id: viewModel.selectedVersionID) {
+            await viewModel.loadSelectedBuild()
+        }
         .alert("Error", isPresented: .init(
             get: { viewModel.errorMessage != nil },
             set: { if !$0 { viewModel.errorMessage = nil } }
@@ -203,6 +206,31 @@ struct AppDetailView: View {
                                 }
                             )
                         }
+
+                        AppDetailBuildSectionView(
+                            selectedVersion: viewModel.selectedVersion,
+                            canSelectBuild: viewModel.canSelectBuild,
+                            selectedBuild: viewModel.selectedBuild,
+                            isLoading: viewModel.isLoadingBuilds,
+                            errorMessage: viewModel.buildLoadError,
+                            onSelectBuildTapped: {
+                                viewModel.showBuildPicker = true
+                                Task {
+                                    await viewModel.loadAvailableBuilds()
+                                }
+                            }
+                        )
+                        .sheet(isPresented: $viewModel.showBuildPicker) {
+                            AppDetailBuildPickerSheet(
+                                builds: viewModel.builds,
+                                selectedBuildID: viewModel.selectedBuildID,
+                                isLoading: viewModel.isLoadingAvailableBuilds,
+                                errorMessage: viewModel.buildLoadError,
+                                onBuildSelected: { buildID in
+                                    viewModel.selectBuild(buildID)
+                                }
+                            )
+                        }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(28)
@@ -213,10 +241,10 @@ struct AppDetailView: View {
         .safeAreaInset(edge: .bottom, spacing: 0) {
             HStack {
                 Spacer()
-                if viewModel.canEditChangelog {
+                if viewModel.canEditChangelog || viewModel.canSelectBuild {
                     Button {
                         Task {
-                            await viewModel.saveCurrentChangelog()
+                            await viewModel.saveChanges()
                         }
                     } label: {
                         if viewModel.isSaving {
@@ -227,7 +255,7 @@ struct AppDetailView: View {
                         }
                     }
                     .buttonStyle(.bordered)
-                    .disabled(!viewModel.canSaveChangelog)
+                    .disabled(!viewModel.canSaveChanges)
                 }
                 if viewModel.canReleaseVersion {
                     Button {

@@ -12,6 +12,9 @@ struct AppStoreConnectAPIClient {
     var updateChangelog: @Sendable @MainActor (_ localizationID: String, _ text: String) async throws -> Void
     var createAppVersion: @Sendable @MainActor (_ appID: String, _ versionString: String, _ platformRaw: String?) async throws -> AppStoreVersionSummary
     var releaseVersion: @Sendable @MainActor (_ versionID: String) async throws -> Void
+    var fetchSelectedBuild: @Sendable @MainActor (_ versionID: String) async throws -> AppStoreBuild?
+    var updateBuildSelection: @Sendable @MainActor (_ versionID: String, _ buildID: String) async throws -> Void
+    var fetchBuilds: @Sendable @MainActor (_ appID: String, _ versionString: String) async throws -> [AppStoreBuild]
 }
 
 extension AppStoreConnectAPIClient: DependencyKey {
@@ -228,6 +231,54 @@ extension AppStoreConnectAPIClient: DependencyKey {
             )
             let request = APIEndpoint.v1.appStoreVersionReleaseRequests.post(requestBody)
             _ = try await provider.request(request)
+        },
+        fetchSelectedBuild: { versionID in
+            @Dependency(\.appStoreConnectKey) var keyClient
+
+            guard let apiKey = try keyClient.loadAPIKey() else {
+                throw AppStoreConnectError.noAPIKey
+            }
+
+            let configuration = try makeConfiguration(
+                issuerID: apiKey.issuerID,
+                keyID: apiKey.keyID,
+                privateKey: apiKey.privateKey
+            )
+
+            let provider = APIProvider(configuration: configuration)
+            return try await fetchSelectedBuildForVersion(versionID: versionID, provider: provider)
+        },
+        updateBuildSelection: { versionID, buildID in
+            @Dependency(\.appStoreConnectKey) var keyClient
+
+            guard let apiKey = try keyClient.loadAPIKey() else {
+                throw AppStoreConnectError.noAPIKey
+            }
+
+            let configuration = try makeConfiguration(
+                issuerID: apiKey.issuerID,
+                keyID: apiKey.keyID,
+                privateKey: apiKey.privateKey
+            )
+
+            let provider = APIProvider(configuration: configuration)
+            try await Verbi.updateBuildSelection(versionID: versionID, buildID: buildID, provider: provider)
+        },
+        fetchBuilds: { appID, versionString in
+            @Dependency(\.appStoreConnectKey) var keyClient
+
+            guard let apiKey = try keyClient.loadAPIKey() else {
+                throw AppStoreConnectError.noAPIKey
+            }
+
+            let configuration = try makeConfiguration(
+                issuerID: apiKey.issuerID,
+                keyID: apiKey.keyID,
+                privateKey: apiKey.privateKey
+            )
+
+            let provider = APIProvider(configuration: configuration)
+            return try await fetchAllBuildsForVersion(appID: appID, versionString: versionString, provider: provider)
         }
     )
 }
@@ -410,4 +461,87 @@ private func makeVersionSummary(from version: AppStoreVersion?, kind: AppStoreVe
         kind: kind,
         isEditable: isEditable
     )
+}
+
+private func fetchSelectedBuildForVersion(versionID: String, provider: APIProvider) async throws -> AppStoreBuild? {
+    let buildRequest = APIEndpoint
+        .v1
+        .appStoreVersions
+        .id(versionID)
+        .build
+        .get()
+
+    let buildResponse = try await provider.request(buildRequest)
+    let build = buildResponse.data
+    guard let attributes = build.attributes,
+          let buildVersion = attributes.version else {
+        return nil
+    }
+
+    let processingState = attributes.processingState?.rawValue
+    let isSelectable = processingState == "VALID" || processingState == nil
+    return AppStoreBuild(
+        id: build.id,
+        version: buildVersion,
+        uploadedDate: attributes.uploadedDate,
+        processingState: processingState,
+        isSelectable: isSelectable
+    )
+}
+
+private func updateBuildSelection(versionID: String, buildID: String, provider: APIProvider) async throws {
+    let requestBody = AppStoreVersionUpdateRequest(
+        data: .init(
+            type: .appStoreVersions,
+            id: versionID,
+            relationships: .init(
+                build: .init(
+                    data: .init(
+                        type: .builds,
+                        id: buildID
+                    )
+                )
+            )
+        )
+    )
+    let request = APIEndpoint
+        .v1
+        .appStoreVersions
+        .id(versionID)
+        .patch(requestBody)
+    _ = try await provider.request(request)
+}
+
+private func fetchAllBuildsForVersion(appID: String, versionString: String, provider: APIProvider) async throws -> [AppStoreBuild] {
+    // Now fetch builds filtered by this preReleaseVersion
+    let buildsRequest = APIEndpoint
+        .v1
+        .builds
+        .get(parameters: .init(
+            filterPreReleaseVersionVersion: [versionString],
+            filterApp: [appID],
+            limit: 200
+        ))
+    
+    let buildsResponse = try await provider.request(buildsRequest)
+    return buildsResponse.data.compactMap { build -> AppStoreBuild? in
+        guard let attributes = build.attributes,
+              let buildNumber = attributes.version
+        else { return nil }
+        
+        let processingState = attributes.processingState?.rawValue
+        let isSelectable = processingState == "VALID" || processingState == nil
+        return AppStoreBuild(
+            id: build.id,
+            version: buildNumber,
+            uploadedDate: attributes.uploadedDate,
+            processingState: processingState,
+            isSelectable: isSelectable
+        )
+    }.sorted { lhs, rhs in
+        guard let lhsDate = lhs.uploadedDate, let rhsDate = rhs.uploadedDate else {
+            return lhs.version > rhs.version
+        }
+        return lhsDate > rhsDate
+    }
 }
