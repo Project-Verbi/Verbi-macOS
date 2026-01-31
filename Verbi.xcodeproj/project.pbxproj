@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		4A08618A2F2D8B6300227D3D /* CustomDump in Frameworks */ = {isa = PBXBuildFile; productRef = 4A0861892F2D8B6300227D3D /* CustomDump */; };
 		4A1313162F1D4F3900F0A47D /* Dependencies in Frameworks */ = {isa = PBXBuildFile; productRef = 4A1313152F1D4F3900F0A47D /* Dependencies */; };
 		4A1313182F1D4F3900F0A47D /* DependenciesMacros in Frameworks */ = {isa = PBXBuildFile; productRef = 4A1313172F1D4F3900F0A47D /* DependenciesMacros */; };
 		4A13131D2F1D4F5800F0A47D /* AppStoreConnect-Swift-SDK in Frameworks */ = {isa = PBXBuildFile; productRef = 4A13131C2F1D4F5800F0A47D /* AppStoreConnect-Swift-SDK */; };
@@ -70,6 +71,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				4A08618A2F2D8B6300227D3D /* CustomDump in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -150,6 +152,7 @@
 			);
 			name = VerbiTests;
 			packageProductDependencies = (
+				4A0861892F2D8B6300227D3D /* CustomDump */,
 			);
 			productName = VerbiTests;
 			productReference = 4A1312F72F1D4EEA00F0A47D /* VerbiTests.xctest */;
@@ -214,6 +217,7 @@
 				4A1313142F1D4F3900F0A47D /* XCRemoteSwiftPackageReference "swift-dependencies" */,
 				4A13131B2F1D4F5800F0A47D /* XCRemoteSwiftPackageReference "appstoreconnect-swift-sdk" */,
 				4A54F2D22F2D76AF00388C07 /* XCRemoteSwiftPackageReference "ConfettiSwiftUI" */,
+				4A0861882F2D8B6300227D3D /* XCRemoteSwiftPackageReference "swift-custom-dump" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 4A1312EB2F1D4EE700F0A47D /* Products */;
@@ -617,6 +621,14 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
+		4A0861882F2D8B6300227D3D /* XCRemoteSwiftPackageReference "swift-custom-dump" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/pointfreeco/swift-custom-dump.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.4.1;
+			};
+		};
 		4A1313142F1D4F3900F0A47D /* XCRemoteSwiftPackageReference "swift-dependencies" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/pointfreeco/swift-dependencies";
@@ -644,6 +656,11 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		4A0861892F2D8B6300227D3D /* CustomDump */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 4A0861882F2D8B6300227D3D /* XCRemoteSwiftPackageReference "swift-custom-dump" */;
+			productName = CustomDump;
+		};
 		4A1313152F1D4F3900F0A47D /* Dependencies */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 4A1313142F1D4F3900F0A47D /* XCRemoteSwiftPackageReference "swift-dependencies" */;
