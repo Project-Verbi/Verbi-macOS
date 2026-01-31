@@ -10,8 +10,6 @@
 		4A1313162F1D4F3900F0A47D /* Dependencies in Frameworks */ = {isa = PBXBuildFile; productRef = 4A1313152F1D4F3900F0A47D /* Dependencies */; };
 		4A1313182F1D4F3900F0A47D /* DependenciesMacros in Frameworks */ = {isa = PBXBuildFile; productRef = 4A1313172F1D4F3900F0A47D /* DependenciesMacros */; };
 		4A13131D2F1D4F5800F0A47D /* AppStoreConnect-Swift-SDK in Frameworks */ = {isa = PBXBuildFile; productRef = 4A13131C2F1D4F5800F0A47D /* AppStoreConnect-Swift-SDK */; };
-		4A1313202F1D4F8600F0A47D /* SQLiteData in Frameworks */ = {isa = PBXBuildFile; productRef = 4A13131F2F1D4F8600F0A47D /* SQLiteData */; };
-		4A1313222F1D4F8600F0A47D /* SQLiteDataTestSupport in Frameworks */ = {isa = PBXBuildFile; productRef = 4A1313212F1D4F8600F0A47D /* SQLiteDataTestSupport */; };
 		4A54F2D42F2D76AF00388C07 /* ConfettiSwiftUI in Frameworks */ = {isa = PBXBuildFile; productRef = 4A54F2D32F2D76AF00388C07 /* ConfettiSwiftUI */; };
 /* End PBXBuildFile section */
 
@@ -64,7 +62,6 @@
 				4A54F2D42F2D76AF00388C07 /* ConfettiSwiftUI in Frameworks */,
 				4A1313182F1D4F3900F0A47D /* DependenciesMacros in Frameworks */,
 				4A1313162F1D4F3900F0A47D /* Dependencies in Frameworks */,
-				4A1313202F1D4F8600F0A47D /* SQLiteData in Frameworks */,
 				4A13131D2F1D4F5800F0A47D /* AppStoreConnect-Swift-SDK in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -73,7 +70,6 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				4A1313222F1D4F8600F0A47D /* SQLiteDataTestSupport in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -130,7 +126,6 @@
 				4A1313152F1D4F3900F0A47D /* Dependencies */,
 				4A1313172F1D4F3900F0A47D /* DependenciesMacros */,
 				4A13131C2F1D4F5800F0A47D /* AppStoreConnect-Swift-SDK */,
-				4A13131F2F1D4F8600F0A47D /* SQLiteData */,
 				4A54F2D32F2D76AF00388C07 /* ConfettiSwiftUI */,
 			);
 			productName = Verbi;
@@ -155,7 +150,6 @@
 			);
 			name = VerbiTests;
 			packageProductDependencies = (
-				4A1313212F1D4F8600F0A47D /* SQLiteDataTestSupport */,
 			);
 			productName = VerbiTests;
 			productReference = 4A1312F72F1D4EEA00F0A47D /* VerbiTests.xctest */;
@@ -219,7 +213,6 @@
 			packageReferences = (
 				4A1313142F1D4F3900F0A47D /* XCRemoteSwiftPackageReference "swift-dependencies" */,
 				4A13131B2F1D4F5800F0A47D /* XCRemoteSwiftPackageReference "appstoreconnect-swift-sdk" */,
-				4A13131E2F1D4F8600F0A47D /* XCRemoteSwiftPackageReference "sqlite-data" */,
 				4A54F2D22F2D76AF00388C07 /* XCRemoteSwiftPackageReference "ConfettiSwiftUI" */,
 			);
 			preferredProjectObjectVersion = 77;
@@ -640,14 +633,6 @@
 				minimumVersion = 4.2.0;
 			};
 		};
-		4A13131E2F1D4F8600F0A47D /* XCRemoteSwiftPackageReference "sqlite-data" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/pointfreeco/sqlite-data.git";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 1.5.0;
-			};
-		};
 		4A54F2D22F2D76AF00388C07 /* XCRemoteSwiftPackageReference "ConfettiSwiftUI" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/simibac/ConfettiSwiftUI.git";
@@ -673,16 +658,6 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 4A13131B2F1D4F5800F0A47D /* XCRemoteSwiftPackageReference "appstoreconnect-swift-sdk" */;
 			productName = "AppStoreConnect-Swift-SDK";
-		};
-		4A13131F2F1D4F8600F0A47D /* SQLiteData */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 4A13131E2F1D4F8600F0A47D /* XCRemoteSwiftPackageReference "sqlite-data" */;
-			productName = SQLiteData;
-		};
-		4A1313212F1D4F8600F0A47D /* SQLiteDataTestSupport */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 4A13131E2F1D4F8600F0A47D /* XCRemoteSwiftPackageReference "sqlite-data" */;
-			productName = SQLiteDataTestSupport;
 		};
 		4A54F2D32F2D76AF00388C07 /* ConfettiSwiftUI */ = {
 			isa = XCSwiftPackageProductDependency;
