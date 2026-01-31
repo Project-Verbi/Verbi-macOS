@@ -59,3 +59,11 @@ struct AppChangelog: Identifiable, Hashable {
     let locale: String
     var text: String
 }
+
+struct AppStoreBuild: Identifiable, Hashable {
+    let id: String
+    let version: String
+    let uploadedDate: Date?
+    let processingState: String?
+    let isSelectable: Bool
+}

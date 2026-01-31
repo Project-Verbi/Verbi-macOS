@@ -43,6 +43,14 @@ final class AppDetailViewModel {
     var showReleaseConfirmation = false
     var releaseState: ReleaseState = .idle
     var isCopyingFromPrevious = false
+    var builds: [AppStoreBuild] = []
+    var selectedBuildID: String?
+    var initialSelectedBuildID: String?
+    var isLoadingBuilds = false
+    var isLoadingAvailableBuilds = false
+    var buildLoadError: String?
+    var showBuildPicker = false
+    var hasLoadedAvailableBuilds = false
 
     private var draftsByVersion: [String: VersionDraft] = [:]
 
@@ -100,6 +108,11 @@ final class AppDetailViewModel {
         return !isSaving
     }
 
+    var canSaveChanges: Bool {
+        if isSaving || isCopyingFromPrevious { return false }
+        return shouldSaveCurrentChangelog || shouldSaveBuildSelection
+    }
+
     var platformRawForNewVersion: String? {
         guard canCreateVersion else { return nil }
         return selectedVersion?.platform ?? versions.first?.platform ?? app.platform
@@ -124,6 +137,18 @@ final class AppDetailViewModel {
     var canCopyChangelogFromPreviousVersion: Bool {
         guard previousVersion != nil else { return false }
         return !locales.isEmpty && canEditChangelog
+    }
+
+    var canSelectBuild: Bool {
+        selectedVersion?.isEditable ?? false
+    }
+
+    var selectedBuild: AppStoreBuild? {
+        builds.first { $0.id == selectedBuildID }
+    }
+
+    var isBuildSelectionDirty: Bool {
+        selectedBuildID != initialSelectedBuildID
     }
 
     /// Checks if current text can be applied to all other locales.
@@ -159,6 +184,9 @@ final class AppDetailViewModel {
                 selectedLocale: selectedLocale,
                 dirtyLocales: dirtyLocales
             )
+        }
+        if selectedVersionID != newValue {
+            resetBuildState()
         }
         selectedVersionID = newValue
     }
@@ -247,28 +275,116 @@ final class AppDetailViewModel {
         isLoadingChangelogs = false
     }
 
-    func saveCurrentChangelog() async {
-        guard let locale = selectedLocale,
-              let localizationID = changelogIDByLocale[locale],
-              let text = changelogByLocale[locale]
-        else { return }
+    func loadSelectedBuild() async {
+        guard let versionID = selectedVersionID else {
+            resetBuildState()
+            return
+        }
+
+        isLoadingBuilds = true
+        buildLoadError = nil
+
+        do {
+            let selectedBuild = try await apiClient.fetchSelectedBuild(versionID)
+            if let selectedBuild {
+                builds = [selectedBuild]
+                selectedBuildID = selectedBuild.id
+                initialSelectedBuildID = selectedBuild.id
+            } else {
+                builds = []
+                selectedBuildID = nil
+                initialSelectedBuildID = nil
+            }
+        } catch {
+            builds = []
+            selectedBuildID = nil
+            initialSelectedBuildID = nil
+            buildLoadError = "Failed to load selected build: \(error.localizedDescription)"
+        }
+
+        isLoadingBuilds = false
+    }
+
+    func loadAvailableBuilds() async {
+        guard let version = selectedVersion else {
+            resetBuildState()
+            return
+        }
+
+        if hasLoadedAvailableBuilds {
+            return
+        }
+
+        isLoadingAvailableBuilds = true
+        buildLoadError = nil
+
+        do {
+            let fetchedBuilds = try await apiClient.fetchBuilds(app.id, version.version)
+            builds = fetchedBuilds
+            hasLoadedAvailableBuilds = true
+            if let selectedBuildID, !builds.contains(where: { $0.id == selectedBuildID }) {
+                self.selectedBuildID = nil
+            }
+        } catch {
+            buildLoadError = "Failed to load builds: \(error.localizedDescription)"
+        }
+
+        isLoadingAvailableBuilds = false
+    }
+
+    func selectBuild(_ buildID: String) {
+        selectedBuildID = buildID
+    }
+
+    func saveChanges() async {
+        guard canSaveChanges else { return }
+
+        let shouldSaveChangelog = shouldSaveCurrentChangelog
+        let shouldSaveBuild = shouldSaveBuildSelection
 
         isSaving = true
         errorMessage = nil
         actionMessage = nil
 
         do {
-            try await apiClient.updateChangelog(localizationID, text)
-            dirtyLocales.remove(locale)
-            if dirtyLocales.isEmpty, let versionID = selectedVersionID {
-                draftsByVersion[versionID] = nil
+            if shouldSaveChangelog,
+               let locale = selectedLocale,
+               let localizationID = changelogIDByLocale[locale],
+               let text = changelogByLocale[locale] {
+                try await apiClient.updateChangelog(localizationID, text)
+                dirtyLocales.remove(locale)
+                if dirtyLocales.isEmpty, let versionID = selectedVersionID {
+                    draftsByVersion[versionID] = nil
+                }
             }
-            actionMessage = "Changelog updated."
+
+            if shouldSaveBuild, let versionID = selectedVersionID, let selectedBuildID {
+                try await apiClient.updateBuildSelection(versionID, selectedBuildID)
+                initialSelectedBuildID = selectedBuildID
+            }
+
+            if shouldSaveChangelog || shouldSaveBuild {
+                actionMessage = "Saved changes."
+            }
         } catch {
-            errorMessage = "Failed to update changelog: \(error.localizedDescription)"
+            errorMessage = "Failed to save changes: \(error.localizedDescription)"
         }
 
         isSaving = false
+    }
+
+    private func resetBuildState() {
+        builds = []
+        selectedBuildID = nil
+        initialSelectedBuildID = nil
+        buildLoadError = nil
+        isLoadingBuilds = false
+        isLoadingAvailableBuilds = false
+        hasLoadedAvailableBuilds = false
+    }
+
+    func saveCurrentChangelog() async {
+        await saveChanges()
     }
 
     /// Copies the changelog text from the previous version for all current locales.
@@ -368,6 +484,24 @@ final class AppDetailViewModel {
         } catch {
             releaseState = .error(message: error.localizedDescription)
         }
+    }
+
+    private var shouldSaveCurrentChangelog: Bool {
+        guard let locale = selectedLocale,
+              dirtyLocales.contains(locale),
+              let localizationID = changelogIDByLocale[locale],
+              !localizationID.isEmpty,
+              canEditChangelog
+        else { return false }
+        return true
+    }
+
+    private var shouldSaveBuildSelection: Bool {
+        guard canSelectBuild,
+              let selectedBuildID,
+              !selectedBuildID.isEmpty
+        else { return false }
+        return isBuildSelectionDirty
     }
 
     func displayName(for locale: String) -> String {
