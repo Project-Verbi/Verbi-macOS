@@ -1,7 +1,6 @@
 import SwiftUI
 import Dependencies
 import Observation
-import ConfettiSwiftUI
 
 struct AppDetailView: View {
     let app: AppStoreApp
