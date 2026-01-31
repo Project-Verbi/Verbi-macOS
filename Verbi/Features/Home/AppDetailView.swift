@@ -2,7 +2,6 @@ import SwiftUI
 import Dependencies
 import Observation
 
-
 struct AppDetailView: View {
     let app: AppStoreApp
 
@@ -20,6 +19,28 @@ struct AppDetailView: View {
             detailContent
         }
         .navigationTitle(app.name)
+        .overlay {
+            switch viewModel.releaseState {
+            case .idle:
+                EmptyView()
+            case .inProgress:
+                ReleaseProgressOverlay()
+            case .success(let versionNumber):
+                ReleaseCelebrationOverlay(
+                    versionNumber: versionNumber,
+                    onDismiss: {
+                        viewModel.releaseState = .idle
+                    }
+                )
+            case .error(let message):
+                ReleaseErrorOverlay(
+                    errorMessage: message,
+                    onDismiss: {
+                        viewModel.releaseState = .idle
+                    }
+                )
+            }
+        }
         .task {
             await viewModel.loadVersions()
         }
@@ -190,9 +211,9 @@ struct AppDetailView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            if viewModel.canEditChangelog {
-                HStack {
-                    Spacer()
+            HStack {
+                Spacer()
+                if viewModel.canEditChangelog {
                     Button {
                         Task {
                             await viewModel.saveCurrentChangelog()
@@ -207,11 +228,36 @@ struct AppDetailView: View {
                     }
                     .buttonStyle(.bordered)
                     .disabled(!viewModel.canSaveChangelog)
-                    .padding(.trailing, 28)
                 }
-                .padding(.vertical, 16)
-                .background(Color(nsColor: .windowBackgroundColor))
+                if viewModel.canReleaseVersion {
+                    Button {
+                        viewModel.showReleaseConfirmation = true
+                    } label: {
+                        if viewModel.isReleasing {
+                            ProgressView()
+                                .controlSize(.small)
+                        } else {
+                            Text(viewModel.releaseButtonTitle)
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(viewModel.isReleasing)
+                    .padding(.leading, 12)
+                }
             }
+            .padding(.trailing, 28)
+            .padding(.vertical, 16)
+            .background(Color(nsColor: .windowBackgroundColor))
+        }
+        .alert("Release to App Store", isPresented: $viewModel.showReleaseConfirmation) {
+            Button("Cancel", role: .cancel) { }
+            Button("Release", role: .destructive) {
+                Task {
+                    await viewModel.releaseVersion()
+                }
+            }
+        } message: {
+            Text("Are you sure you want to release this version to the App Store? This action cannot be undone.")
         }
     }
 
