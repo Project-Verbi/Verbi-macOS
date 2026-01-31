@@ -299,7 +299,7 @@ final class AppDetailViewModel {
             builds = []
             selectedBuildID = nil
             initialSelectedBuildID = nil
-            buildLoadError = nil
+            buildLoadError = "Failed to load selected build: \(error.localizedDescription)"
         }
 
         isLoadingBuilds = false
