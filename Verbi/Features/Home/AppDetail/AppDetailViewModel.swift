@@ -10,6 +10,13 @@ enum ReleaseState: Equatable {
     case error(message: String?)
 }
 
+enum SubmitForReviewState: Equatable {
+    case idle
+    case inProgress
+    case success(versionNumber: String?)
+    case error(message: String?)
+}
+
 @MainActor
 @Observable
 final class AppDetailViewModel {
@@ -42,6 +49,10 @@ final class AppDetailViewModel {
     var localesToBeOverridden: [String] = []
     var showReleaseConfirmation = false
     var releaseState: ReleaseState = .idle
+    var showSubmitForReviewConfirmation = false
+    var submitForReviewState: SubmitForReviewState = .idle
+    var selectedReleaseOption: ReleaseOption = .manual
+    var isPhasedReleaseEnabled = false
     var isCopyingFromPrevious = false
     var builds: [AppStoreBuild] = []
     var selectedBuildID: String?
@@ -93,6 +104,23 @@ final class AppDetailViewModel {
     var releaseButtonTitle: String {
         if canReleaseVersion {
             return "Release to App Store"
+        }
+        return ""
+    }
+
+    var isSubmittingForReview: Bool {
+        submitForReviewState == .inProgress
+    }
+
+    var canSubmitForReview: Bool {
+        guard let state = selectedVersion?.state?.uppercased() else { return false }
+        let editableStates = ["PREPARE_FOR_SUBMISSION", "DEVELOPER_REJECTED", "REJECTED"]
+        return editableStates.contains(state) && !isSubmittingForReview && !isReleasing
+    }
+
+    var submitForReviewButtonTitle: String {
+        if canSubmitForReview {
+            return "Submit for Review"
         }
         return ""
     }
@@ -483,6 +511,28 @@ final class AppDetailViewModel {
             await loadVersions()
         } catch {
             releaseState = .error(message: error.localizedDescription)
+        }
+    }
+
+    func submitForReview() async {
+        guard let versionID = selectedVersionID, canSubmitForReview else { return }
+
+        submitForReviewState = .inProgress
+        errorMessage = nil
+        actionMessage = nil
+
+        do {
+            let phasedReleaseEnabled = selectedReleaseOption.kind == .afterApproval && isPhasedReleaseEnabled
+            try await apiClient.submitForReview(
+                versionID,
+                selectedReleaseOption.releaseType,
+                selectedReleaseOption.scheduledDate,
+                phasedReleaseEnabled
+            )
+            submitForReviewState = .success(versionNumber: selectedVersion?.version)
+            await loadVersions()
+        } catch {
+            submitForReviewState = .error(message: error.localizedDescription)
         }
     }
 

@@ -12,6 +12,7 @@ struct AppStoreConnectAPIClient {
     var updateChangelog: @Sendable @MainActor (_ localizationID: String, _ text: String) async throws -> Void
     var createAppVersion: @Sendable @MainActor (_ appID: String, _ versionString: String, _ platformRaw: String?) async throws -> AppStoreVersionSummary
     var releaseVersion: @Sendable @MainActor (_ versionID: String) async throws -> Void
+    var submitForReview: @Sendable @MainActor (_ versionID: String, _ releaseType: ReleaseType, _ scheduledDate: Date?, _ phasedReleaseEnabled: Bool) async throws -> Void
     var fetchSelectedBuild: @Sendable @MainActor (_ versionID: String) async throws -> AppStoreBuild?
     var updateBuildSelection: @Sendable @MainActor (_ versionID: String, _ buildID: String) async throws -> Void
     var fetchBuilds: @Sendable @MainActor (_ appID: String, _ versionString: String) async throws -> [AppStoreBuild]
@@ -232,6 +233,60 @@ extension AppStoreConnectAPIClient: DependencyKey {
             let request = APIEndpoint.v1.appStoreVersionReleaseRequests.post(requestBody)
             _ = try await provider.request(request)
         },
+        submitForReview: { versionID, releaseType, scheduledDate, phasedReleaseEnabled in
+            @Dependency(\.appStoreConnectKey) var keyClient
+
+            guard let apiKey = try keyClient.loadAPIKey() else {
+                throw AppStoreConnectError.noAPIKey
+            }
+
+            let configuration = try makeConfiguration(
+                issuerID: apiKey.issuerID,
+                keyID: apiKey.keyID,
+                privateKey: apiKey.privateKey
+            )
+
+            let provider = APIProvider(configuration: configuration)
+
+            let version = try await fetchAppStoreVersionDetails(versionID: versionID, provider: provider)
+            guard let appID = version.relationships?.app?.data?.id else {
+                throw AppStoreConnectError.missingAppReference
+            }
+
+            try await updateReleaseOptions(
+                versionID: versionID,
+                releaseType: releaseType,
+                scheduledDate: scheduledDate,
+                provider: provider
+            )
+
+            let shouldEnablePhasedRelease = phasedReleaseEnabled && releaseType == .afterApproval
+            try await updatePhasedRelease(
+                versionID: versionID,
+                enabled: shouldEnablePhasedRelease,
+                provider: provider
+            )
+
+            let existingSubmission = try await fetchExistingReviewSubmission(appID: appID, provider: provider)
+            let submission: ReviewSubmission
+            if let existingSubmission {
+                submission = existingSubmission
+            } else {
+                submission = try await createReviewSubmission(
+                    appID: appID,
+                    platform: version.attributes?.platform,
+                    provider: provider
+                )
+            }
+
+            try await createReviewSubmissionItem(
+                submissionID: submission.id,
+                versionID: versionID,
+                provider: provider
+            )
+
+            try await submitReviewSubmission(submissionID: submission.id, provider: provider)
+        },
         fetchSelectedBuild: { versionID in
             @Dependency(\.appStoreConnectKey) var keyClient
 
@@ -294,6 +349,31 @@ enum AppStoreConnectError: Error {
     case noAPIKey
     case unsupportedPlatform
     case unexpectedResponse
+    case submitForReviewNotImplemented
+    case missingScheduledReleaseDate
+    case missingAppReference
+    case reviewAlreadySubmitted
+}
+
+extension AppStoreConnectError: LocalizedError {
+    var errorDescription: String? {
+        switch self {
+        case .noAPIKey:
+            return "No App Store Connect API key found."
+        case .unsupportedPlatform:
+            return "Unsupported platform for this app version."
+        case .unexpectedResponse:
+            return "Unexpected response from App Store Connect."
+        case .submitForReviewNotImplemented:
+            return "Submit for review is not available right now."
+        case .missingScheduledReleaseDate:
+            return "Scheduled release requires a date and time."
+        case .missingAppReference:
+            return "Unable to determine the app associated with this version."
+        case .reviewAlreadySubmitted:
+            return "A review submission for this app is already in progress."
+        }
+    }
 }
 
 private func makeConfiguration(issuerID: String, keyID: String, privateKey: String) throws -> APIConfiguration {
@@ -543,5 +623,208 @@ private func fetchAllBuildsForVersion(appID: String, versionString: String, prov
             return lhs.version > rhs.version
         }
         return lhsDate > rhsDate
+    }
+}
+
+private func fetchAppStoreVersionDetails(versionID: String, provider: APIProvider) async throws -> AppStoreVersion {
+    let parameters = APIEndpoint.V1.AppStoreVersions.WithID.GetParameters(
+        fieldsAppStoreVersions: [.app, .platform],
+        include: [.app]
+    )
+    let request = APIEndpoint.v1.appStoreVersions.id(versionID).get(parameters: parameters)
+    let response = try await provider.request(request)
+    return response.data
+}
+
+private func updateReleaseOptions(
+    versionID: String,
+    releaseType: ReleaseType,
+    scheduledDate: Date?,
+    provider: APIProvider
+) async throws {
+    let mappedReleaseType: AppStoreVersionUpdateRequest.Data.Attributes.ReleaseType
+    switch releaseType {
+    case .manual:
+        mappedReleaseType = .manual
+    case .afterApproval:
+        mappedReleaseType = .afterApproval
+    case .scheduled:
+        mappedReleaseType = .scheduled
+    }
+
+    let earliestReleaseDate: Date?
+    if releaseType == .scheduled {
+        guard let scheduledDate else {
+            throw AppStoreConnectError.missingScheduledReleaseDate
+        }
+        earliestReleaseDate = scheduledDate
+    } else {
+        earliestReleaseDate = nil
+    }
+
+    let attributes = AppStoreVersionUpdateRequest.Data.Attributes(
+        releaseType: mappedReleaseType,
+        earliestReleaseDate: earliestReleaseDate
+    )
+    let requestBody = AppStoreVersionUpdateRequest(
+        data: .init(
+            type: .appStoreVersions,
+            id: versionID,
+            attributes: attributes
+        )
+    )
+    let request = APIEndpoint.v1.appStoreVersions.id(versionID).patch(requestBody)
+    _ = try await provider.request(request)
+}
+
+private func fetchExistingReviewSubmission(appID: String, provider: APIProvider) async throws -> ReviewSubmission? {
+    let parameters = APIEndpoint.V1.ReviewSubmissions.GetParameters(
+        filterApp: [appID],
+        fieldsReviewSubmissions: [.state],
+        limit: 10
+    )
+    let request = APIEndpoint.v1.reviewSubmissions.get(parameters: parameters)
+    let response = try await provider.request(request)
+
+    let submissions = response.data
+    if let pending = submissions.first(where: { submission in
+        switch submission.attributes?.state {
+        case .readyForReview, .unresolvedIssues:
+            return true
+        default:
+            return false
+        }
+    }) {
+        return pending
+    }
+
+    let hasActiveSubmission = submissions.contains(where: { submission in
+        switch submission.attributes?.state {
+        case .waitingForReview, .inReview, .canceling, .completing:
+            return true
+        default:
+            return false
+        }
+    })
+
+    if hasActiveSubmission {
+        throw AppStoreConnectError.reviewAlreadySubmitted
+    }
+
+    return nil
+}
+
+private func createReviewSubmission(appID: String, platform: Platform?, provider: APIProvider) async throws -> ReviewSubmission {
+    let relationships = ReviewSubmissionCreateRequest.Data.Relationships(
+        app: .init(
+            data: .init(type: .apps, id: appID)
+        )
+    )
+    let attributes = ReviewSubmissionCreateRequest.Data.Attributes(platform: platform)
+    let requestBody = ReviewSubmissionCreateRequest(
+        data: .init(
+            type: .reviewSubmissions,
+            attributes: attributes,
+            relationships: relationships
+        )
+    )
+    let request = APIEndpoint.v1.reviewSubmissions.post(requestBody)
+    let response = try await provider.request(request)
+    return response.data
+}
+
+private func createReviewSubmissionItem(
+    submissionID: String,
+    versionID: String,
+    provider: APIProvider
+) async throws {
+    let reviewSubmission = ReviewSubmissionItemCreateRequest.Data.Relationships.ReviewSubmission(
+        data: .init(type: .reviewSubmissions, id: submissionID)
+    )
+    let appStoreVersion = ReviewSubmissionItemCreateRequest.Data.Relationships.AppStoreVersion(
+        data: .init(type: .appStoreVersions, id: versionID)
+    )
+    let relationships = ReviewSubmissionItemCreateRequest.Data.Relationships(
+        reviewSubmission: reviewSubmission,
+        appStoreVersion: appStoreVersion
+    )
+    let requestBody = ReviewSubmissionItemCreateRequest(
+        data: .init(
+            type: .reviewSubmissionItems,
+            relationships: relationships
+        )
+    )
+    let request = APIEndpoint.v1.reviewSubmissionItems.post(requestBody)
+    do {
+        _ = try await provider.request(request)
+    } catch let APIProvider.Error.requestFailure(statusCode, _, _) where statusCode == 409 {
+        // Item already exists for this submission/version.
+    }
+}
+
+private func submitReviewSubmission(submissionID: String, provider: APIProvider) async throws {
+    let attributes = ReviewSubmissionUpdateRequest.Data.Attributes(isSubmitted: true)
+    let requestBody = ReviewSubmissionUpdateRequest(
+        data: .init(
+            type: .reviewSubmissions,
+            id: submissionID,
+            attributes: attributes
+        )
+    )
+    let request = APIEndpoint.v1.reviewSubmissions.id(submissionID).patch(requestBody)
+    _ = try await provider.request(request)
+}
+
+private func fetchPhasedRelease(versionID: String, provider: APIProvider) async throws -> AppStoreVersionPhasedRelease? {
+    let parameters = APIEndpoint.V1.AppStoreVersions.WithID.GetParameters(
+        fieldsAppStoreVersions: [.appStoreVersionPhasedRelease],
+        fieldsAppStoreVersionPhasedReleases: [.phasedReleaseState],
+        include: [.appStoreVersionPhasedRelease]
+    )
+    let request = APIEndpoint.v1.appStoreVersions.id(versionID).get(parameters: parameters)
+    let response = try await provider.request(request)
+    guard let included = response.included else {
+        return nil
+    }
+    for item in included {
+        if case let .appStoreVersionPhasedRelease(phasedRelease) = item {
+            return phasedRelease
+        }
+    }
+    return nil
+}
+
+private func updatePhasedRelease(
+    versionID: String,
+    enabled: Bool,
+    provider: APIProvider
+) async throws {
+    let existing = try await fetchPhasedRelease(versionID: versionID, provider: provider)
+    let targetState: PhasedReleaseState = enabled ? .active : .inactive
+
+    if let existing {
+        let requestBody = AppStoreVersionPhasedReleaseUpdateRequest(
+            data: .init(
+                type: .appStoreVersionPhasedReleases,
+                id: existing.id,
+                attributes: .init(phasedReleaseState: targetState)
+            )
+        )
+        let request = APIEndpoint.v1.appStoreVersionPhasedReleases.id(existing.id).patch(requestBody)
+        _ = try await provider.request(request)
+    } else if enabled {
+        let requestBody = AppStoreVersionPhasedReleaseCreateRequest(
+            data: .init(
+                type: .appStoreVersionPhasedReleases,
+                attributes: .init(phasedReleaseState: targetState),
+                relationships: .init(
+                    appStoreVersion: .init(
+                        data: .init(type: .appStoreVersions, id: versionID)
+                    )
+                )
+            )
+        )
+        let request = APIEndpoint.v1.appStoreVersionPhasedReleases.post(requestBody)
+        _ = try await provider.request(request)
     }
 }

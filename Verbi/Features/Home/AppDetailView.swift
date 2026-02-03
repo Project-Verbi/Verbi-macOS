@@ -20,25 +20,51 @@ struct AppDetailView: View {
         }
         .navigationTitle(app.name)
         .overlay {
-            switch viewModel.releaseState {
-            case .idle:
-                EmptyView()
-            case .inProgress:
-                ReleaseProgressOverlay()
-            case .success(let versionNumber):
-                ReleaseCelebrationOverlay(
-                    versionNumber: versionNumber,
-                    onDismiss: {
-                        viewModel.releaseState = .idle
-                    }
-                )
-            case .error(let message):
-                ReleaseErrorOverlay(
-                    errorMessage: message,
-                    onDismiss: {
-                        viewModel.releaseState = .idle
-                    }
-                )
+            Group {
+                switch viewModel.releaseState {
+                case .idle:
+                    EmptyView()
+                case .inProgress:
+                    ReleaseProgressOverlay()
+                case .success(let versionNumber):
+                    ReleaseCelebrationOverlay(
+                        versionNumber: versionNumber,
+                        onDismiss: {
+                            viewModel.releaseState = .idle
+                        }
+                    )
+                case .error(let message):
+                    ReleaseErrorOverlay(
+                        errorMessage: message,
+                        onDismiss: {
+                            viewModel.releaseState = .idle
+                        }
+                    )
+                }
+            }
+        }
+        .overlay {
+            Group {
+                switch viewModel.submitForReviewState {
+                case .idle:
+                    EmptyView()
+                case .inProgress:
+                    SubmitForReviewProgressOverlay()
+                case .success(let versionNumber):
+                    SubmitForReviewSuccessOverlay(
+                        versionNumber: versionNumber,
+                        onDismiss: {
+                            viewModel.submitForReviewState = .idle
+                        }
+                    )
+                case .error(let message):
+                    SubmitForReviewErrorOverlay(
+                        errorMessage: message,
+                        onDismiss: {
+                            viewModel.submitForReviewState = .idle
+                        }
+                    )
+                }
             }
         }
         .task {
@@ -257,6 +283,22 @@ struct AppDetailView: View {
                     .buttonStyle(.bordered)
                     .disabled(!viewModel.canSaveChanges)
                 }
+                if viewModel.canSubmitForReview {
+                    Button {
+                        viewModel.showSubmitForReviewConfirmation = true
+                    } label: {
+                        if viewModel.isSubmittingForReview {
+                            ProgressView()
+                                .controlSize(.small)
+                        } else {
+                            Text(viewModel.submitForReviewButtonTitle)
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.blue)
+                    .disabled(viewModel.isSubmittingForReview)
+                    .padding(.leading, 12)
+                }
                 if viewModel.canReleaseVersion {
                     Button {
                         viewModel.showReleaseConfirmation = true
@@ -286,6 +328,22 @@ struct AppDetailView: View {
             }
         } message: {
             Text("Are you sure you want to release this version to the App Store? This action cannot be undone.")
+        }
+        .sheet(isPresented: $viewModel.showSubmitForReviewConfirmation) {
+            SubmitForReviewConfirmationSheet(
+                releaseOption: $viewModel.selectedReleaseOption,
+                isPhasedReleaseEnabled: $viewModel.isPhasedReleaseEnabled,
+                versionNumber: viewModel.selectedVersion?.version,
+                onCancel: {
+                    viewModel.showSubmitForReviewConfirmation = false
+                },
+                onSubmit: {
+                    viewModel.showSubmitForReviewConfirmation = false
+                    Task {
+                        await viewModel.submitForReview()
+                    }
+                }
+            )
         }
     }
 
