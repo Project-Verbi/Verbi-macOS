@@ -1851,11 +1851,12 @@ struct AppDetailViewModelTests {
         // WHEN loading selected build with error
         await sut.loadSelectedBuild()
 
-        // THEN the build state is cleared (error is silently handled)
+        // THEN the build state is cleared and error is exposed
         #expect(sut.builds.isEmpty)
         #expect(sut.selectedBuildID == nil)
         #expect(sut.initialSelectedBuildID == nil)
         #expect(sut.isLoadingBuilds == false)
+        #expect(sut.buildLoadError != nil)
     }
 
     // MARK: - loadAvailableBuilds Tests
