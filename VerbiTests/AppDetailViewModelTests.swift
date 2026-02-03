@@ -215,6 +215,16 @@ struct AppDetailViewModelTests {
             AppDetailViewModel(app: .stub)
         }
 
+        sut.versions = [
+            AppStoreVersionSummary(
+                id: "version-1",
+                version: "1.0.0",
+                state: "PREPARE_FOR_SUBMISSION",
+                platform: "IOS",
+                kind: .current,
+                isEditable: true
+            )
+        ]
         sut.selectedVersionID = "version-1"
         sut.selectedLocale = "en-US"
         sut.changelogIDByLocale = ["en-US": "loc-1"]
@@ -228,7 +238,7 @@ struct AppDetailViewModelTests {
         #expect(updatedLocalizationID.withLock { $0 } == "loc-1")
         #expect(updatedText.withLock { $0 } == "Updated changelog")
         #expect(sut.dirtyLocales.contains("en-US") == false)
-        #expect(sut.actionMessage == "Changelog updated.")
+        #expect(sut.actionMessage == "Saved changes.")
         #expect(sut.isSaving == false)
     }
 
@@ -243,17 +253,28 @@ struct AppDetailViewModelTests {
             AppDetailViewModel(app: .stub)
         }
 
+        sut.versions = [
+            AppStoreVersionSummary(
+                id: "version-1",
+                version: "1.0.0",
+                state: "PREPARE_FOR_SUBMISSION",
+                platform: "IOS",
+                kind: .current,
+                isEditable: true
+            )
+        ]
         sut.selectedVersionID = "version-1"
         sut.selectedLocale = "en-US"
         sut.changelogIDByLocale = ["en-US": "loc-1"]
         sut.changelogByLocale = ["en-US": "Updated changelog"]
+        sut.dirtyLocales = ["en-US"]
 
         // WHEN saving the changelog
         await sut.saveCurrentChangelog()
 
         // THEN an error message is set
         #expect(sut.errorMessage != nil)
-        #expect(sut.errorMessage?.contains("Failed to update changelog") == true)
+        #expect(sut.errorMessage?.contains("Failed to save changes") == true)
         #expect(sut.isSaving == false)
     }
 
@@ -1732,5 +1753,628 @@ struct AppDetailViewModelTests {
 
         // THEN the localesToBeOverridden is cleared
         #expect(sut.localesToBeOverridden.isEmpty)
+    }
+
+    // MARK: - loadSelectedBuild Tests
+
+    @Test
+    func loadSelectedBuild_success_setsBuildAndSelection() async throws {
+        // GIVEN a view model with a selected version and mocked build
+        let selectedBuild = AppStoreBuild(
+            id: "build-1",
+            version: "1.0.0",
+            uploadedDate: Date(),
+            processingState: nil,
+            isSelectable: true
+        )
+
+        let sut = withDependencies {
+            $0.appStoreConnectAPI.fetchSelectedBuild = { _ in selectedBuild }
+        } operation: {
+            AppDetailViewModel(app: .stub)
+        }
+        sut.selectedVersionID = "version-1"
+
+        // WHEN loading selected build
+        await sut.loadSelectedBuild()
+
+        // THEN the build is set and selected
+        #expect(sut.builds.count == 1)
+        #expect(sut.builds.first?.id == "build-1")
+        #expect(sut.selectedBuildID == "build-1")
+        #expect(sut.initialSelectedBuildID == "build-1")
+        #expect(sut.isLoadingBuilds == false)
+        #expect(sut.buildLoadError == nil)
+    }
+
+    @Test
+    func loadSelectedBuild_withNoBuild_clearsBuildState() async throws {
+        // GIVEN a view model with existing build data but no build returned
+        let sut = withDependencies {
+            $0.appStoreConnectAPI.fetchSelectedBuild = { _ in nil }
+        } operation: {
+            AppDetailViewModel(app: .stub)
+        }
+        sut.selectedVersionID = "version-1"
+        sut.builds = [AppStoreBuild(id: "old-build", version: "0.9.0", uploadedDate: Date(), processingState: nil, isSelectable: true)]
+        sut.selectedBuildID = "old-build"
+        sut.initialSelectedBuildID = "old-build"
+
+        // WHEN loading selected build with no build
+        await sut.loadSelectedBuild()
+
+        // THEN the build state is cleared
+        #expect(sut.builds.isEmpty)
+        #expect(sut.selectedBuildID == nil)
+        #expect(sut.initialSelectedBuildID == nil)
+    }
+
+    @Test
+    func loadSelectedBuild_withNoSelectedVersion_clearsBuildState() async throws {
+        // GIVEN a view model with no selected version
+        let fetchCalled = Mutex(false)
+        let sut = withDependencies {
+            $0.appStoreConnectAPI.fetchSelectedBuild = { _ in
+                fetchCalled.withLock { $0 = true }
+                return nil
+            }
+        } operation: {
+            AppDetailViewModel(app: .stub)
+        }
+        sut.builds = [AppStoreBuild(id: "build-1", version: "1.0.0", uploadedDate: Date(), processingState: nil, isSelectable: true)]
+        sut.selectedBuildID = "build-1"
+
+        // WHEN loading selected build without a version
+        await sut.loadSelectedBuild()
+
+        // THEN the fetch is not called and build state is cleared
+        #expect(fetchCalled.withLock { $0 } == false)
+        #expect(sut.builds.isEmpty)
+        #expect(sut.selectedBuildID == nil)
+        #expect(sut.initialSelectedBuildID == nil)
+    }
+
+    @Test
+    func loadSelectedBuild_error_clearsBuildState() async throws {
+        // GIVEN a view model with a failing fetch
+        let sut = withDependencies {
+            $0.appStoreConnectAPI.fetchSelectedBuild = { _ in
+                throw NSError(domain: "test", code: 1)
+            }
+        } operation: {
+            AppDetailViewModel(app: .stub)
+        }
+        sut.selectedVersionID = "version-1"
+        sut.builds = [AppStoreBuild(id: "old-build", version: "0.9.0", uploadedDate: Date(), processingState: nil, isSelectable: true)]
+        sut.selectedBuildID = "old-build"
+
+        // WHEN loading selected build with error
+        await sut.loadSelectedBuild()
+
+        // THEN the build state is cleared and error is exposed
+        #expect(sut.builds.isEmpty)
+        #expect(sut.selectedBuildID == nil)
+        #expect(sut.initialSelectedBuildID == nil)
+        #expect(sut.isLoadingBuilds == false)
+        #expect(sut.buildLoadError != nil)
+    }
+
+    // MARK: - loadAvailableBuilds Tests
+
+    @Test
+    func loadAvailableBuilds_success_setsBuilds() async throws {
+        // GIVEN a view model with a selected version
+        let builds = [
+            AppStoreBuild(id: "build-1", version: "1.0.0", uploadedDate: Date(), processingState: nil, isSelectable: true),
+            AppStoreBuild(id: "build-2", version: "1.0.1", uploadedDate: Date(), processingState: nil, isSelectable: true)
+        ]
+
+        let sut = withDependencies {
+            $0.appStoreConnectAPI.fetchBuilds = { _, _ in builds }
+        } operation: {
+            AppDetailViewModel(app: .stub)
+        }
+        sut.versions = [
+            AppStoreVersionSummary(
+                id: "version-1",
+                version: "1.0.0",
+                state: "PREPARE_FOR_SUBMISSION",
+                platform: "IOS",
+                kind: .current,
+                isEditable: true
+            )
+        ]
+        sut.selectedVersionID = "version-1"
+
+        // WHEN loading available builds
+        await sut.loadAvailableBuilds()
+
+        // THEN the builds are set
+        #expect(sut.builds.count == 2)
+        #expect(sut.hasLoadedAvailableBuilds == true)
+        #expect(sut.isLoadingAvailableBuilds == false)
+        #expect(sut.buildLoadError == nil)
+    }
+
+    @Test
+    func loadAvailableBuilds_cachesResults() async throws {
+        // GIVEN a view model that has already loaded builds
+        let fetchCallCount = Mutex(0)
+        let builds = [AppStoreBuild(id: "build-1", version: "1.0.0", uploadedDate: Date(), processingState: nil, isSelectable: true)]
+
+        let sut = withDependencies {
+            $0.appStoreConnectAPI.fetchBuilds = { _, _ in
+                fetchCallCount.withLock { $0 += 1 }
+                return builds
+            }
+        } operation: {
+            AppDetailViewModel(app: .stub)
+        }
+        sut.versions = [
+            AppStoreVersionSummary(
+                id: "version-1",
+                version: "1.0.0",
+                state: "PREPARE_FOR_SUBMISSION",
+                platform: "IOS",
+                kind: .current,
+                isEditable: true
+            )
+        ]
+        sut.selectedVersionID = "version-1"
+        sut.hasLoadedAvailableBuilds = true
+
+        // WHEN loading available builds again
+        await sut.loadAvailableBuilds()
+
+        // THEN the fetch is not called again
+        #expect(fetchCallCount.withLock { $0 } == 0)
+    }
+
+    @Test
+    func loadAvailableBuilds_withNoSelectedVersion_clearsBuildState() async throws {
+        // GIVEN a view model with no selected version
+        let fetchCalled = Mutex(false)
+        let sut = withDependencies {
+            $0.appStoreConnectAPI.fetchBuilds = { _, _ in
+                fetchCalled.withLock { $0 = true }
+                return []
+            }
+        } operation: {
+            AppDetailViewModel(app: .stub)
+        }
+        sut.builds = [AppStoreBuild(id: "build-1", version: "1.0.0", uploadedDate: Date(), processingState: nil, isSelectable: true)]
+
+        // WHEN loading available builds without a version
+        await sut.loadAvailableBuilds()
+
+        // THEN the fetch is not called and build state is cleared
+        #expect(fetchCalled.withLock { $0 } == false)
+        #expect(sut.builds.isEmpty)
+    }
+
+    @Test
+    func loadAvailableBuilds_error_setsErrorMessage() async throws {
+        // GIVEN a view model with a failing fetch
+        let sut = withDependencies {
+            $0.appStoreConnectAPI.fetchBuilds = { _, _ in
+                throw NSError(domain: "test", code: 1)
+            }
+        } operation: {
+            AppDetailViewModel(app: .stub)
+        }
+        sut.versions = [
+            AppStoreVersionSummary(
+                id: "version-1",
+                version: "1.0.0",
+                state: "PREPARE_FOR_SUBMISSION",
+                platform: "IOS",
+                kind: .current,
+                isEditable: true
+            )
+        ]
+        sut.selectedVersionID = "version-1"
+
+        // WHEN loading available builds with error
+        await sut.loadAvailableBuilds()
+
+        // THEN an error message is set
+        #expect(sut.buildLoadError?.contains("Failed to load builds") == true)
+        #expect(sut.isLoadingAvailableBuilds == false)
+        #expect(sut.hasLoadedAvailableBuilds == false)
+    }
+
+    @Test
+    func loadAvailableBuilds_clearsSelectedBuildIfNotInList() async throws {
+        // GIVEN a view model with a selected build that won't be in the fetched list
+        let builds = [AppStoreBuild(id: "build-2", version: "1.0.1", uploadedDate: Date(), processingState: nil, isSelectable: true)]
+
+        let sut = withDependencies {
+            $0.appStoreConnectAPI.fetchBuilds = { _, _ in builds }
+        } operation: {
+            AppDetailViewModel(app: .stub)
+        }
+        sut.versions = [
+            AppStoreVersionSummary(
+                id: "version-1",
+                version: "1.0.0",
+                state: "PREPARE_FOR_SUBMISSION",
+                platform: "IOS",
+                kind: .current,
+                isEditable: true
+            )
+        ]
+        sut.selectedVersionID = "version-1"
+        sut.selectedBuildID = "build-1" // This won't be in the fetched list
+
+        // WHEN loading available builds
+        await sut.loadAvailableBuilds()
+
+        // THEN the selected build ID is cleared since it's not in the list
+        #expect(sut.selectedBuildID == nil)
+    }
+
+    // MARK: - selectBuild Tests
+
+    @Test
+    func selectBuild_updatesSelectedBuildID() {
+        // GIVEN a view model
+        let sut = AppDetailViewModel(app: .stub)
+        sut.selectedBuildID = nil
+
+        // WHEN selecting a build
+        sut.selectBuild("build-1")
+
+        // THEN the selected build ID is updated
+        #expect(sut.selectedBuildID == "build-1")
+    }
+
+    // MARK: - Build Computed Properties Tests
+
+    @Test
+    func canSelectBuild_returnsTrueForEditableVersion() {
+        // GIVEN a view model with an editable version selected
+        let sut = AppDetailViewModel(app: .stub)
+        sut.versions = [
+            AppStoreVersionSummary(
+                id: "version-1",
+                version: "1.0.0",
+                state: "PREPARE_FOR_SUBMISSION",
+                platform: "IOS",
+                kind: .current,
+                isEditable: true
+            )
+        ]
+        sut.selectedVersionID = "version-1"
+
+        // WHEN checking if build can be selected
+        let canSelect = sut.canSelectBuild
+
+        // THEN it returns true
+        #expect(canSelect == true)
+    }
+
+    @Test
+    func canSelectBuild_returnsFalseForNonEditableVersion() {
+        // GIVEN a view model with a non-editable version selected
+        let sut = AppDetailViewModel(app: .stub)
+        sut.versions = [
+            AppStoreVersionSummary(
+                id: "version-1",
+                version: "1.0.0",
+                state: "READY_FOR_SALE",
+                platform: "IOS",
+                kind: .current,
+                isEditable: false
+            )
+        ]
+        sut.selectedVersionID = "version-1"
+
+        // WHEN checking if build can be selected
+        let canSelect = sut.canSelectBuild
+
+        // THEN it returns false
+        #expect(canSelect == false)
+    }
+
+    @Test
+    func selectedBuild_returnsCurrentlySelectedBuild() {
+        // GIVEN a view model with builds
+        let sut = AppDetailViewModel(app: .stub)
+        let build = AppStoreBuild(id: "build-1", version: "1.0.0", uploadedDate: Date(), processingState: nil, isSelectable: true)
+        sut.builds = [build]
+        sut.selectedBuildID = "build-1"
+
+        // WHEN accessing the selected build
+        let selected = sut.selectedBuild
+
+        // THEN the correct build is returned
+        #expect(selected?.id == "build-1")
+        #expect(selected?.version == "1.0.0")
+    }
+
+    @Test
+    func selectedBuild_returnsNilWhenNoSelection() {
+        // GIVEN a view model with builds but no selection
+        let sut = AppDetailViewModel(app: .stub)
+        let build = AppStoreBuild(id: "build-1", version: "1.0.0", uploadedDate: Date(), processingState: nil, isSelectable: true)
+        sut.builds = [build]
+        sut.selectedBuildID = nil
+
+        // WHEN accessing the selected build
+        let selected = sut.selectedBuild
+
+        // THEN it returns nil
+        #expect(selected == nil)
+    }
+
+    @Test
+    func isBuildSelectionDirty_returnsTrueWhenChanged() {
+        // GIVEN a view model with different selected and initial build IDs
+        let sut = AppDetailViewModel(app: .stub)
+        sut.selectedBuildID = "build-2"
+        sut.initialSelectedBuildID = "build-1"
+
+        // WHEN checking if build selection is dirty
+        let isDirty = sut.isBuildSelectionDirty
+
+        // THEN it returns true
+        #expect(isDirty == true)
+    }
+
+    @Test
+    func isBuildSelectionDirty_returnsFalseWhenSame() {
+        // GIVEN a view model with same selected and initial build IDs
+        let sut = AppDetailViewModel(app: .stub)
+        sut.selectedBuildID = "build-1"
+        sut.initialSelectedBuildID = "build-1"
+
+        // WHEN checking if build selection is dirty
+        let isDirty = sut.isBuildSelectionDirty
+
+        // THEN it returns false
+        #expect(isDirty == false)
+    }
+
+    @Test
+    func isBuildSelectionDirty_returnsFalseWhenBothNil() {
+        // GIVEN a view model with both IDs nil
+        let sut = AppDetailViewModel(app: .stub)
+        sut.selectedBuildID = nil
+        sut.initialSelectedBuildID = nil
+
+        // WHEN checking if build selection is dirty
+        let isDirty = sut.isBuildSelectionDirty
+
+        // THEN it returns false
+        #expect(isDirty == false)
+    }
+
+    // MARK: - saveChanges with Build Selection Tests
+
+    @Test
+    func saveChanges_savesBuildSelectionWhenDirty() async throws {
+        // GIVEN a view model with dirty build selection
+        let updatedVersionID = Mutex<String?>(nil)
+        let updatedBuildID = Mutex<String?>(nil)
+
+        let sut = withDependencies {
+            $0.appStoreConnectAPI.updateBuildSelection = { versionID, buildID in
+                updatedVersionID.withLock { $0 = versionID }
+                updatedBuildID.withLock { $0 = buildID }
+            }
+        } operation: {
+            AppDetailViewModel(app: .stub)
+        }
+
+        sut.versions = [
+            AppStoreVersionSummary(
+                id: "version-1",
+                version: "1.0.0",
+                state: "PREPARE_FOR_SUBMISSION",
+                platform: "IOS",
+                kind: .current,
+                isEditable: true
+            )
+        ]
+        sut.selectedVersionID = "version-1"
+        sut.selectedBuildID = "build-2"
+        sut.initialSelectedBuildID = "build-1"
+
+        // WHEN saving changes
+        await sut.saveChanges()
+
+        // THEN the build selection is saved
+        #expect(updatedVersionID.withLock { $0 } == "version-1")
+        #expect(updatedBuildID.withLock { $0 } == "build-2")
+        #expect(sut.initialSelectedBuildID == "build-2") // Updated to match
+        #expect(sut.actionMessage == "Saved changes.")
+    }
+
+    @Test
+    func saveChanges_doesNotSaveBuildWhenNotDirty() async throws {
+        // GIVEN a view model with clean build selection
+        let updateCalled = Mutex(false)
+
+        let sut = withDependencies {
+            $0.appStoreConnectAPI.updateBuildSelection = { _, _ in
+                updateCalled.withLock { $0 = true }
+            }
+        } operation: {
+            AppDetailViewModel(app: .stub)
+        }
+
+        sut.versions = [
+            AppStoreVersionSummary(
+                id: "version-1",
+                version: "1.0.0",
+                state: "PREPARE_FOR_SUBMISSION",
+                platform: "IOS",
+                kind: .current,
+                isEditable: true
+            )
+        ]
+        sut.selectedVersionID = "version-1"
+        sut.selectedBuildID = "build-1"
+        sut.initialSelectedBuildID = "build-1" // Same, not dirty
+
+        // WHEN saving changes
+        await sut.saveChanges()
+
+        // THEN the build selection is not saved
+        #expect(updateCalled.withLock { $0 } == false)
+    }
+
+    @Test
+    func saveChanges_savesBothChangelogAndBuild() async throws {
+        // GIVEN a view model with both changelog and build changes
+        let changelogUpdated = Mutex(false)
+        let buildUpdated = Mutex(false)
+
+        let sut = withDependencies {
+            $0.appStoreConnectAPI.updateChangelog = { _, _ in
+                changelogUpdated.withLock { $0 = true }
+            }
+            $0.appStoreConnectAPI.updateBuildSelection = { _, _ in
+                buildUpdated.withLock { $0 = true }
+            }
+        } operation: {
+            AppDetailViewModel(app: .stub)
+        }
+
+        sut.versions = [
+            AppStoreVersionSummary(
+                id: "version-1",
+                version: "1.0.0",
+                state: "PREPARE_FOR_SUBMISSION",
+                platform: "IOS",
+                kind: .current,
+                isEditable: true
+            )
+        ]
+        sut.selectedVersionID = "version-1"
+        sut.selectedLocale = "en-US"
+        sut.changelogIDByLocale = ["en-US": "loc-1"]
+        sut.changelogByLocale = ["en-US": "Updated changelog"]
+        sut.dirtyLocales = ["en-US"]
+        sut.selectedBuildID = "build-2"
+        sut.initialSelectedBuildID = "build-1"
+
+        // WHEN saving changes
+        await sut.saveChanges()
+
+        // THEN both changelog and build are saved
+        #expect(changelogUpdated.withLock { $0 } == true)
+        #expect(buildUpdated.withLock { $0 } == true)
+        #expect(sut.actionMessage == "Saved changes.")
+    }
+
+    @Test
+    func saveChanges_withBuildError_showsErrorMessage() async throws {
+        // GIVEN a view model with failing build update
+        let sut = withDependencies {
+            $0.appStoreConnectAPI.updateBuildSelection = { _, _ in
+                throw NSError(domain: "test", code: 1)
+            }
+        } operation: {
+            AppDetailViewModel(app: .stub)
+        }
+
+        sut.versions = [
+            AppStoreVersionSummary(
+                id: "version-1",
+                version: "1.0.0",
+                state: "PREPARE_FOR_SUBMISSION",
+                platform: "IOS",
+                kind: .current,
+                isEditable: true
+            )
+        ]
+        sut.selectedVersionID = "version-1"
+        sut.selectedBuildID = "build-2"
+        sut.initialSelectedBuildID = "build-1"
+
+        // WHEN saving changes
+        await sut.saveChanges()
+
+        // THEN an error message is shown
+        #expect(sut.errorMessage?.contains("Failed to save changes") == true)
+        #expect(sut.isSaving == false)
+    }
+
+    @Test
+    func canSaveChanges_returnsTrueWhenBuildSelectionDirty() {
+        // GIVEN a view model with dirty build selection
+        let sut = AppDetailViewModel(app: .stub)
+        sut.versions = [
+            AppStoreVersionSummary(
+                id: "version-1",
+                version: "1.0.0",
+                state: "PREPARE_FOR_SUBMISSION",
+                platform: "IOS",
+                kind: .current,
+                isEditable: true
+            )
+        ]
+        sut.selectedVersionID = "version-1"
+        sut.selectedBuildID = "build-2"
+        sut.initialSelectedBuildID = "build-1"
+        sut.isSaving = false
+        sut.isCopyingFromPrevious = false
+
+        // WHEN checking if can save changes
+        let canSave = sut.canSaveChanges
+
+        // THEN it returns true
+        #expect(canSave == true)
+    }
+
+    @Test
+    func canSaveChanges_returnsFalseWhenCannotSelectBuild() {
+        // GIVEN a view model with non-editable version
+        let sut = AppDetailViewModel(app: .stub)
+        sut.versions = [
+            AppStoreVersionSummary(
+                id: "version-1",
+                version: "1.0.0",
+                state: "READY_FOR_SALE",
+                platform: "IOS",
+                kind: .current,
+                isEditable: false
+            )
+        ]
+        sut.selectedVersionID = "version-1"
+        sut.selectedBuildID = "build-2"
+        sut.initialSelectedBuildID = "build-1"
+
+        // WHEN checking if can save changes
+        let canSave = sut.canSaveChanges
+
+        // THEN it returns false because build selection is not allowed
+        #expect(canSave == false)
+    }
+
+    // MARK: - setSelectedVersionID with Build Reset Tests
+
+    @Test
+    func setSelectedVersionID_resetsBuildState() {
+        // GIVEN a view model with build data
+        let sut = AppDetailViewModel(app: .stub)
+        sut.selectedVersionID = "version-1"
+        sut.builds = [AppStoreBuild(id: "build-1", version: "1.0.0", uploadedDate: Date(), processingState: nil, isSelectable: true)]
+        sut.selectedBuildID = "build-1"
+        sut.initialSelectedBuildID = "build-1"
+        sut.hasLoadedAvailableBuilds = true
+        sut.buildLoadError = "Some error"
+
+        // WHEN switching to a different version
+        sut.setSelectedVersionID("version-2")
+
+        // THEN the build state is reset
+        #expect(sut.builds.isEmpty)
+        #expect(sut.selectedBuildID == nil)
+        #expect(sut.initialSelectedBuildID == nil)
+        #expect(sut.hasLoadedAvailableBuilds == false)
+        #expect(sut.buildLoadError == nil)
+        #expect(sut.selectedVersionID == "version-2")
     }
 }
