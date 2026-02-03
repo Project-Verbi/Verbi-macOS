@@ -215,6 +215,16 @@ struct AppDetailViewModelTests {
             AppDetailViewModel(app: .stub)
         }
 
+        sut.versions = [
+            AppStoreVersionSummary(
+                id: "version-1",
+                version: "1.0.0",
+                state: "PREPARE_FOR_SUBMISSION",
+                platform: "IOS",
+                kind: .current,
+                isEditable: true
+            )
+        ]
         sut.selectedVersionID = "version-1"
         sut.selectedLocale = "en-US"
         sut.changelogIDByLocale = ["en-US": "loc-1"]
@@ -228,7 +238,7 @@ struct AppDetailViewModelTests {
         #expect(updatedLocalizationID.withLock { $0 } == "loc-1")
         #expect(updatedText.withLock { $0 } == "Updated changelog")
         #expect(sut.dirtyLocales.contains("en-US") == false)
-        #expect(sut.actionMessage == "Changelog updated.")
+        #expect(sut.actionMessage == "Saved changes.")
         #expect(sut.isSaving == false)
     }
 
@@ -243,17 +253,28 @@ struct AppDetailViewModelTests {
             AppDetailViewModel(app: .stub)
         }
 
+        sut.versions = [
+            AppStoreVersionSummary(
+                id: "version-1",
+                version: "1.0.0",
+                state: "PREPARE_FOR_SUBMISSION",
+                platform: "IOS",
+                kind: .current,
+                isEditable: true
+            )
+        ]
         sut.selectedVersionID = "version-1"
         sut.selectedLocale = "en-US"
         sut.changelogIDByLocale = ["en-US": "loc-1"]
         sut.changelogByLocale = ["en-US": "Updated changelog"]
+        sut.dirtyLocales = ["en-US"]
 
         // WHEN saving the changelog
         await sut.saveCurrentChangelog()
 
         // THEN an error message is set
         #expect(sut.errorMessage != nil)
-        #expect(sut.errorMessage?.contains("Failed to update changelog") == true)
+        #expect(sut.errorMessage?.contains("Failed to save changes") == true)
         #expect(sut.isSaving == false)
     }
 
@@ -1742,7 +1763,9 @@ struct AppDetailViewModelTests {
         let selectedBuild = AppStoreBuild(
             id: "build-1",
             version: "1.0.0",
-            uploadedDate: Date()
+            uploadedDate: Date(),
+            processingState: nil,
+            isSelectable: true
         )
 
         let sut = withDependencies {
@@ -1773,7 +1796,7 @@ struct AppDetailViewModelTests {
             AppDetailViewModel(app: .stub)
         }
         sut.selectedVersionID = "version-1"
-        sut.builds = [AppStoreBuild(id: "old-build", version: "0.9.0", uploadedDate: Date())]
+        sut.builds = [AppStoreBuild(id: "old-build", version: "0.9.0", uploadedDate: Date(), processingState: nil, isSelectable: true)]
         sut.selectedBuildID = "old-build"
         sut.initialSelectedBuildID = "old-build"
 
@@ -1798,7 +1821,7 @@ struct AppDetailViewModelTests {
         } operation: {
             AppDetailViewModel(app: .stub)
         }
-        sut.builds = [AppStoreBuild(id: "build-1", version: "1.0.0", uploadedDate: Date())]
+        sut.builds = [AppStoreBuild(id: "build-1", version: "1.0.0", uploadedDate: Date(), processingState: nil, isSelectable: true)]
         sut.selectedBuildID = "build-1"
 
         // WHEN loading selected build without a version
@@ -1822,7 +1845,7 @@ struct AppDetailViewModelTests {
             AppDetailViewModel(app: .stub)
         }
         sut.selectedVersionID = "version-1"
-        sut.builds = [AppStoreBuild(id: "old-build", version: "0.9.0", uploadedDate: Date())]
+        sut.builds = [AppStoreBuild(id: "old-build", version: "0.9.0", uploadedDate: Date(), processingState: nil, isSelectable: true)]
         sut.selectedBuildID = "old-build"
 
         // WHEN loading selected build with error
@@ -1841,8 +1864,8 @@ struct AppDetailViewModelTests {
     func loadAvailableBuilds_success_setsBuilds() async throws {
         // GIVEN a view model with a selected version
         let builds = [
-            AppStoreBuild(id: "build-1", version: "1.0.0", uploadedDate: Date()),
-            AppStoreBuild(id: "build-2", version: "1.0.1", uploadedDate: Date())
+            AppStoreBuild(id: "build-1", version: "1.0.0", uploadedDate: Date(), processingState: nil, isSelectable: true),
+            AppStoreBuild(id: "build-2", version: "1.0.1", uploadedDate: Date(), processingState: nil, isSelectable: true)
         ]
 
         let sut = withDependencies {
@@ -1876,7 +1899,7 @@ struct AppDetailViewModelTests {
     func loadAvailableBuilds_cachesResults() async throws {
         // GIVEN a view model that has already loaded builds
         let fetchCallCount = Mutex(0)
-        let builds = [AppStoreBuild(id: "build-1", version: "1.0.0", uploadedDate: Date())]
+        let builds = [AppStoreBuild(id: "build-1", version: "1.0.0", uploadedDate: Date(), processingState: nil, isSelectable: true)]
 
         let sut = withDependencies {
             $0.appStoreConnectAPI.fetchBuilds = { _, _ in
@@ -1918,7 +1941,7 @@ struct AppDetailViewModelTests {
         } operation: {
             AppDetailViewModel(app: .stub)
         }
-        sut.builds = [AppStoreBuild(id: "build-1", version: "1.0.0", uploadedDate: Date())]
+        sut.builds = [AppStoreBuild(id: "build-1", version: "1.0.0", uploadedDate: Date(), processingState: nil, isSelectable: true)]
 
         // WHEN loading available builds without a version
         await sut.loadAvailableBuilds()
@@ -1962,7 +1985,7 @@ struct AppDetailViewModelTests {
     @Test
     func loadAvailableBuilds_clearsSelectedBuildIfNotInList() async throws {
         // GIVEN a view model with a selected build that won't be in the fetched list
-        let builds = [AppStoreBuild(id: "build-2", version: "1.0.1", uploadedDate: Date())]
+        let builds = [AppStoreBuild(id: "build-2", version: "1.0.1", uploadedDate: Date(), processingState: nil, isSelectable: true)]
 
         let sut = withDependencies {
             $0.appStoreConnectAPI.fetchBuilds = { _, _ in builds }
@@ -2056,7 +2079,7 @@ struct AppDetailViewModelTests {
     func selectedBuild_returnsCurrentlySelectedBuild() {
         // GIVEN a view model with builds
         let sut = AppDetailViewModel(app: .stub)
-        let build = AppStoreBuild(id: "build-1", version: "1.0.0", uploadedDate: Date())
+        let build = AppStoreBuild(id: "build-1", version: "1.0.0", uploadedDate: Date(), processingState: nil, isSelectable: true)
         sut.builds = [build]
         sut.selectedBuildID = "build-1"
 
@@ -2072,7 +2095,7 @@ struct AppDetailViewModelTests {
     func selectedBuild_returnsNilWhenNoSelection() {
         // GIVEN a view model with builds but no selection
         let sut = AppDetailViewModel(app: .stub)
-        let build = AppStoreBuild(id: "build-1", version: "1.0.0", uploadedDate: Date())
+        let build = AppStoreBuild(id: "build-1", version: "1.0.0", uploadedDate: Date(), processingState: nil, isSelectable: true)
         sut.builds = [build]
         sut.selectedBuildID = nil
 
@@ -2336,7 +2359,7 @@ struct AppDetailViewModelTests {
         // GIVEN a view model with build data
         let sut = AppDetailViewModel(app: .stub)
         sut.selectedVersionID = "version-1"
-        sut.builds = [AppStoreBuild(id: "build-1", version: "1.0.0", uploadedDate: Date())]
+        sut.builds = [AppStoreBuild(id: "build-1", version: "1.0.0", uploadedDate: Date(), processingState: nil, isSelectable: true)]
         sut.selectedBuildID = "build-1"
         sut.initialSelectedBuildID = "build-1"
         sut.hasLoadedAvailableBuilds = true
