@@ -37,6 +37,15 @@ struct HomeView: View {
         .task {
             await loadApps()
         }
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                RefreshButton {
+                    Task {
+                        await loadApps()
+                    }
+                }
+            }
+        }
     }
     
     private var sidebar: some View {

@@ -553,6 +553,29 @@ final class AppDetailViewModel {
     func displayName(for locale: String) -> String {
         Locale.current.localizedString(forIdentifier: locale) ?? locale
     }
+
+    func refresh() async {
+        let previousSelectedVersionID = selectedVersionID
+        let previousSelectedLocale = selectedLocale
+        
+        await loadVersions()
+        
+        if let previousSelectedVersionID = previousSelectedVersionID,
+           versions.contains(where: { $0.id == previousSelectedVersionID }) {
+            selectedVersionID = previousSelectedVersionID
+        }
+        
+        await loadChangelogs()
+        
+        if let previousSelectedLocale = previousSelectedLocale,
+           locales.contains(previousSelectedLocale) {
+            selectedLocale = previousSelectedLocale
+        }
+        
+        await loadSelectedBuild()
+        
+        hasLoadedAvailableBuilds = false
+    }
 }
 
 private struct VersionDraft: Hashable {
