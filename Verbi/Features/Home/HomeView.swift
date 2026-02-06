@@ -13,6 +13,7 @@ struct HomeView: View {
     
     @State private var apps: [AppStoreApp] = []
     @State private var isLoading = false
+    @State private var isRefreshing = false
     @State private var errorMessage: String?
     @State private var showResetAction = false
 
@@ -39,9 +40,9 @@ struct HomeView: View {
         }
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
-                RefreshButton {
+                RefreshButton(isLoading: isRefreshing) {
                     Task {
-                        await loadApps()
+                        await refresh()
                     }
                 }
             }
@@ -223,6 +224,14 @@ struct HomeView: View {
         }
         
         isLoading = false
+    }
+
+    private func refresh() async {
+        guard !isRefreshing else { return }
+        isRefreshing = true
+        defer { isRefreshing = false }
+        
+        await loadApps()
     }
 
     private func formatRequestFailure(statusCode: Int, error: APIProvider.Error) -> String {

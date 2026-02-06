@@ -266,7 +266,7 @@ struct AppDetailView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
-                RefreshButton {
+                RefreshButton(isLoading: viewModel.isRefreshing) {
                     Task {
                         await viewModel.refresh()
                     }

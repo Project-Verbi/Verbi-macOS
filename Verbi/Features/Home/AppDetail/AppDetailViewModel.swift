@@ -58,6 +58,7 @@ final class AppDetailViewModel {
     var buildLoadError: String?
     var showBuildPicker = false
     var hasLoadedAvailableBuilds = false
+    var isRefreshing = false
 
     private var draftsByVersion: [String: VersionDraft] = [:]
 
@@ -555,25 +556,29 @@ final class AppDetailViewModel {
     }
 
     func refresh() async {
+        guard !isRefreshing else { return }
+        isRefreshing = true
+        defer { isRefreshing = false }
+
         let previousSelectedVersionID = selectedVersionID
         let previousSelectedLocale = selectedLocale
-        
+
         await loadVersions()
-        
+
         if let previousSelectedVersionID = previousSelectedVersionID,
            versions.contains(where: { $0.id == previousSelectedVersionID }) {
             selectedVersionID = previousSelectedVersionID
         }
-        
+
         await loadChangelogs()
-        
+
         if let previousSelectedLocale = previousSelectedLocale,
            locales.contains(previousSelectedLocale) {
             selectedLocale = previousSelectedLocale
         }
-        
+
         await loadSelectedBuild()
-        
+
         hasLoadedAvailableBuilds = false
     }
 }
