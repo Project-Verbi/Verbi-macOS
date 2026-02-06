@@ -3,19 +3,15 @@ import Dependencies
 import Observation
 import AppStoreConnect_Swift_SDK
 
-enum ReleaseState: Equatable {
+enum AsyncOperationState: Equatable {
     case idle
     case inProgress
     case success(versionNumber: String?)
     case error(message: String?)
 }
 
-enum SubmitForReviewState: Equatable {
-    case idle
-    case inProgress
-    case success(versionNumber: String?)
-    case error(message: String?)
-}
+typealias ReleaseState = AsyncOperationState
+typealias SubmitForReviewState = AsyncOperationState
 
 @MainActor
 @Observable

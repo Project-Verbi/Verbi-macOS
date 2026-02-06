@@ -49,7 +49,11 @@ struct SubmitForReviewSuccessOverlay: View {
             withAnimation(.easeIn(duration: 0.3)) {
                 opacity = 1
             }
-            try? await Task.sleep(for: .seconds(4))
+            do {
+                try await Task.sleep(for: .seconds(4))
+            } catch {
+                return
+            }
             
             withAnimation {
                 opacity = 0

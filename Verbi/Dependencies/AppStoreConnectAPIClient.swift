@@ -349,7 +349,6 @@ enum AppStoreConnectError: Error {
     case noAPIKey
     case unsupportedPlatform
     case unexpectedResponse
-    case submitForReviewNotImplemented
     case missingScheduledReleaseDate
     case missingAppReference
     case reviewAlreadySubmitted
@@ -364,8 +363,6 @@ extension AppStoreConnectError: LocalizedError {
             return "Unsupported platform for this app version."
         case .unexpectedResponse:
             return "Unexpected response from App Store Connect."
-        case .submitForReviewNotImplemented:
-            return "Submit for review is not available right now."
         case .missingScheduledReleaseDate:
             return "Scheduled release requires a date and time."
         case .missingAppReference:
@@ -803,15 +800,20 @@ private func updatePhasedRelease(
     let targetState: PhasedReleaseState = enabled ? .active : .inactive
 
     if let existing {
-        let requestBody = AppStoreVersionPhasedReleaseUpdateRequest(
-            data: .init(
-                type: .appStoreVersionPhasedReleases,
-                id: existing.id,
-                attributes: .init(phasedReleaseState: targetState)
+        if enabled {
+            let requestBody = AppStoreVersionPhasedReleaseUpdateRequest(
+                data: .init(
+                    type: .appStoreVersionPhasedReleases,
+                    id: existing.id,
+                    attributes: .init(phasedReleaseState: .active)
+                )
             )
-        )
-        let request = APIEndpoint.v1.appStoreVersionPhasedReleases.id(existing.id).patch(requestBody)
-        _ = try await provider.request(request)
+            let request = APIEndpoint.v1.appStoreVersionPhasedReleases.id(existing.id).patch(requestBody)
+            _ = try await provider.request(request)
+        } else {
+            let request = APIEndpoint.v1.appStoreVersionPhasedReleases.id(existing.id).delete
+            _ = try await provider.request(request)
+        }
     } else if enabled {
         let requestBody = AppStoreVersionPhasedReleaseCreateRequest(
             data: .init(

@@ -110,27 +110,20 @@ enum ReleaseOption: Hashable, Identifiable {
 
         var id: String { rawValue }
 
-        var displayName: String {
+        var releaseType: ReleaseType {
             switch self {
             case .manual:
-                return "Manual Release"
+                return .manual
             case .afterApproval:
-                return "Automatic Release"
+                return .afterApproval
             case .scheduled:
-                return "Scheduled Release"
+                return .scheduled
             }
         }
 
-        var description: String {
-            switch self {
-            case .manual:
-                return "Release this version manually after it's approved"
-            case .afterApproval:
-                return "Release this version automatically as soon as it's approved"
-            case .scheduled:
-                return "Release this version on a specific date and time"
-            }
-        }
+        var displayName: String { releaseType.displayName }
+
+        var description: String { releaseType.description }
 
         func defaultOption() -> ReleaseOption {
             switch self {
@@ -190,10 +183,12 @@ enum ReleaseOption: Hashable, Identifiable {
     }
 
     static func defaultScheduledDate(from date: Date = Date()) -> Date {
-        var components = DateComponents()
-        components.day = 1
-        components.hour = 9
-        components.minute = 0
-        return Calendar.current.date(byAdding: components, to: date) ?? date
+        let calendar = Calendar.current
+        guard let tomorrow = calendar.date(byAdding: .day, value: 1, to: date),
+              let startOfTomorrow = calendar.date(from: calendar.dateComponents([.year, .month, .day], from: tomorrow)),
+              let result = calendar.date(bySettingHour: 9, minute: 0, second: 0, of: startOfTomorrow) else {
+            return date
+        }
+        return result
     }
 }

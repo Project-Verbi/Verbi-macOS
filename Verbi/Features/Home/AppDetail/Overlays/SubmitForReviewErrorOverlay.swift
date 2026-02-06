@@ -14,7 +14,7 @@ struct SubmitForReviewErrorOverlay: View {
             VStack(spacing: 20) {
                 Image(systemName: "exclamationmark.triangle.fill")
                     .font(.system(size: 60))
-                    .foregroundStyle(.blue)
+                    .foregroundStyle(.orange)
                 
                 Text("Submission Failed")
                     .font(.title)
