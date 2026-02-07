@@ -264,6 +264,15 @@ struct AppDetailView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                RefreshButton(isLoading: viewModel.isRefreshing) {
+                    Task {
+                        await viewModel.refresh()
+                    }
+                }
+            }
+        }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             HStack {
                 Spacer()

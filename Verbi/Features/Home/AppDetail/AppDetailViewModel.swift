@@ -58,6 +58,7 @@ final class AppDetailViewModel {
     var buildLoadError: String?
     var showBuildPicker = false
     var hasLoadedAvailableBuilds = false
+    var isRefreshing = false
 
     private var draftsByVersion: [String: VersionDraft] = [:]
 
@@ -552,6 +553,44 @@ final class AppDetailViewModel {
 
     func displayName(for locale: String) -> String {
         Locale.current.localizedString(forIdentifier: locale) ?? locale
+    }
+
+    func refresh() async {
+        guard !isRefreshing else { return }
+        isRefreshing = true
+        defer { isRefreshing = false }
+
+        let previousSelectedVersionID = selectedVersionID
+        let previousSelectedLocale = selectedLocale
+
+        // Preserve unsaved edits as a draft before reloading
+        if let currentID = selectedVersionID, !dirtyLocales.isEmpty {
+            draftsByVersion[currentID] = VersionDraft(
+                changelogByLocale: changelogByLocale,
+                changelogIDByLocale: changelogIDByLocale,
+                locales: locales,
+                selectedLocale: selectedLocale,
+                dirtyLocales: dirtyLocales
+            )
+        }
+
+        await loadVersions()
+
+        if let previousSelectedVersionID = previousSelectedVersionID,
+           versions.contains(where: { $0.id == previousSelectedVersionID }) {
+            selectedVersionID = previousSelectedVersionID
+        }
+
+        await loadChangelogs()
+
+        if let previousSelectedLocale = previousSelectedLocale,
+           locales.contains(previousSelectedLocale) {
+            selectedLocale = previousSelectedLocale
+        }
+
+        await loadSelectedBuild()
+
+        hasLoadedAvailableBuilds = false
     }
 }
 
