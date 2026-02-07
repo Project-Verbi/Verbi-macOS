@@ -563,6 +563,17 @@ final class AppDetailViewModel {
         let previousSelectedVersionID = selectedVersionID
         let previousSelectedLocale = selectedLocale
 
+        // Preserve unsaved edits as a draft before reloading
+        if let currentID = selectedVersionID, !dirtyLocales.isEmpty {
+            draftsByVersion[currentID] = VersionDraft(
+                changelogByLocale: changelogByLocale,
+                changelogIDByLocale: changelogIDByLocale,
+                locales: locales,
+                selectedLocale: selectedLocale,
+                dirtyLocales: dirtyLocales
+            )
+        }
+
         await loadVersions()
 
         if let previousSelectedVersionID = previousSelectedVersionID,

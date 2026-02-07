@@ -187,7 +187,9 @@ struct HomeView: View {
     }
     
     private func loadApps() async {
-        isLoading = true
+        if !isRefreshing {
+            isLoading = true
+        }
         errorMessage = nil
         
         do {
@@ -223,7 +225,9 @@ struct HomeView: View {
             errorMessage = "Failed to load apps: \(error)"
         }
         
-        isLoading = false
+        if !isRefreshing {
+            isLoading = false
+        }
     }
 
     private func refresh() async {
