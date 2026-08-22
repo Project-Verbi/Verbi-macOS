@@ -162,7 +162,8 @@ private struct BuildErrorView: View {
                 Text(message)
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .textSelection(.enabled)
             }
 
             Spacer()
