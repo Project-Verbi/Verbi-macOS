@@ -152,7 +152,7 @@ struct OnboardingView: View {
         }
         .fileImporter(
             isPresented: $showingFileImporter,
-            allowedContentTypes: [.data],
+            allowedContentTypes: privateKeyContentTypes,
             allowsMultipleSelection: false
         ) { result in
             switch result {
@@ -182,6 +182,13 @@ struct OnboardingView: View {
                 viewModel.errorMessage = "Failed to import private key file: \(error.localizedDescription)"
             }
         }
+    }
+
+    private var privateKeyContentTypes: [UTType] {
+        guard let privateKeyType = UTType(filenameExtension: "p8", conformingTo: .data) else {
+            return []
+        }
+        return [privateKeyType]
     }
 
     private func inferKeyID(from fileName: String) -> String? {
